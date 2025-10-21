@@ -1,10 +1,10 @@
-import { NotFoundError } from "../utils/error";
+import { NotFoundError } from "../utils/error.js";
 
 const notFound = (req, res, next) => {
   next(new NotFoundError(`Không tìm thấy - ${req.originalUrl}`));
 };
 
-const errorHanlder = (err, req, res, next) => {
+const errorHandler = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || "Lỗi Server không xác định.";
 
@@ -29,4 +29,4 @@ const errorHanlder = (err, req, res, next) => {
     });
 };
 
-export { notFound, errorHanlder };
+export { notFound, errorHandler };
