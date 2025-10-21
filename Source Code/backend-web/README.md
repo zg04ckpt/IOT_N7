@@ -5,7 +5,7 @@ Thực hiện theo các bước sau để thiết lập môi trường và chạ
 Bạn cần cài đặt các phần mềm sau trên máy tính của mình:
 
 - **Node.js** (Phiên bản LTS)
-- **MySQL Server**
+- **MySQL**
 
 ### 2. Cài đặt Dependencies
 
@@ -28,7 +28,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ### 4. Migrate DB
 
 ```bash
-npx sequelize-cli db:migrate
+npm run migrate
 ```
 
 ### 5. Chạy dự án với nodemon
