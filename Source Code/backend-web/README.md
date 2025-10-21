@@ -19,6 +19,12 @@ npm install
 
 Copy file .env.example và đổi tên thành **.env**, điền giá trị của các biến cần thiết
 
+Lưu ý: Có thể sinh chuỗi SESSION_SECRET bằng lệnh trong terminal:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
 ### 4. Migrate DB
 
 ```bash
