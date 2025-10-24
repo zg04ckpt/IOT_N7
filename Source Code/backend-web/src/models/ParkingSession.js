@@ -1,5 +1,5 @@
 import { DataTypes } from "sequelize";
-import { sequelize } from "../config/db";
+import { sequelize } from "../config/db.js";
 
 const ParkingSession = sequelize.define(
   "ParkingSession",
@@ -18,7 +18,7 @@ const ParkingSession = sequelize.define(
       allowNull: true,
     },
     amount: {
-      type: DataTypes.DECIMAL(10, 2),
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     licensePlate: {

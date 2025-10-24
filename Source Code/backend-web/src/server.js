@@ -6,6 +6,18 @@ import MySQLStore from "express-mysql-session";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { notFound, errorHandler } from "./middlewares/errorMiddleware.js";
+import userRoutes from "./routes/user.routes.js";
+import parkingSessionRoutes from "./routes/parkingSession.routes.js";
+import adminRoutes from "./routes/admin.routes.js";
+import cardRoutes from "./routes/card.routes.js";
+import deviceRoutes from "./routes/device.routes.js";
+import userInfoRoutes from "./routes/userInfo.routes.js";
+import checkOutRoutes from "./routes/checkout.routes.js";
+import monthlyCardRoutes from "./routes/monthlyCard.routes.js";
+import { createParkingSession } from "./services/checkIn.services.js";
+import viewReportRoutes from "./routes/viewReports.routes.js";
+// import searchRoutes from "./routes/searches.routes.js"
+import searchRoutes from "./routes/searches.routes.js";
 
 dotenv.config();
 
@@ -65,6 +77,18 @@ app.use(
 
 // ErrorHandler Middleware
 
+// Mount routers (keep server.js minimal)
+app.use('/', userRoutes);
+app.use('/api/check-in', createParkingSession); // check-in
+app.use('/api/manage-sessions', parkingSessionRoutes); // manage sessions check-in
+app.use('/api/admins', adminRoutes);
+app.use('/api/manage-cards', cardRoutes);
+app.use('/api/manage-devices', deviceRoutes);
+app.use('/api/user-infos', userInfoRoutes);
+app.use('/api/checkout', checkOutRoutes);
+app.use('/api/monthly-cards', monthlyCardRoutes);
+app.use('/api/view-reports', viewReportRoutes);
+app.use('/api', searchRoutes); 
 // Xử lý route không tồn tại
 app.use(notFound);
 
