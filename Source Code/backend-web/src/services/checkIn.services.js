@@ -7,7 +7,7 @@ import parkingSessionRepository from "../repository/parkingSessionRepository.js"
 export const createParkingSession = async (req, res) => {
   try {
     // 1. Lấy các trường từ request body
-    const {timeStart,licensePlate, cardId, imageUrl,amount } = req.body;
+    const { licensePlate, cardId } = req.body;
 
     // 2. Validation input
     if (!licensePlate || !cardId) {
@@ -17,44 +17,62 @@ export const createParkingSession = async (req, res) => {
       });
     }
 
-    // 3. Lấy thông tin card từ DB
+    //  3. Kiểm tra file ảnh
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu file ảnh',
+      });
+    }
+
+    // 4. Lấy thông tin card từ DB
     const card = await cardRepository.findById(cardId);
 
-    // 4. Kiểm tra card tồn tại
+    // 5. Kiểm tra card tồn tại
     if (!card) {
       return res.status(404).json({
         success: false,
         message: 'Thẻ không tồn tại',
       });
     }
+    if(!card.isActive){
+      return res.status(400).json({
+        success: false,
+        message: 'Thẻ không hoạt động',
+      });
+    }
 
     console.log('Card type:', card.type);
 
-    // 5. Xác định amount dựa trên card.type
-    let amountValue = amount;
-    if (card.type == 1) {
+    // 6. Xác định amount dựa trên card.type
+    let amountValue = 0;
+    if (card.type === 1) {
       amountValue = 0;  // Vé tháng
     } else {
-      amountValue = 5000;     // Thẻ thường
+      amountValue = card.price;  // Thẻ thường
     }
 
-    console.log('Amount:', amount);
+    //  7. Tạo URL ảnh từ file được upload
+    const imageUrl = `/data/image/${req.file.filename}`;
 
-    // 6. Tạo đối tượng session mới
+    console.log('Amount:', amountValue);
+    console.log('Image URL:', imageUrl);
+
+    // 8. Tạo đối tượng session mới
     const newSessionData = {
-      timeStart:  new Date(),
+      timeStart: new Date(),
       licensePlate,
       cardId,
       amount: amountValue,
-      imageUrl: imageUrl || null,
+      imageUrl: imageUrl,
       timeEnd: null,
     };
 
-    // 7. Lưu vào DB
+    // 9. Lưu vào DB
     const savedSession = await parkingSessionRepository.create(newSessionData);
     console.log('Đã lưu session:', savedSession);
 
-    // 8. Trả về kết quả
+    // 10. Trả về kết quả
     res.status(201).json({
       success: true,
       message: 'Check-in thành công!',
@@ -69,8 +87,8 @@ export const createParkingSession = async (req, res) => {
         cardType: card.type === 1 ? 'Vé tháng' : 'Thẻ thường',
         message:
           card.type === 1
-            ? `Vé tháng - Phí: ${amount}đ`
-            : `Thẻ thường - Phí: ${amount}đ`,
+            ? `Vé tháng - Phí: ${amountValue}đ`
+            : `Thẻ thường - Phí: ${amountValue}đ`,
       },
     });
   } catch (error) {

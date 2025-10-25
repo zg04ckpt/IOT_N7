@@ -12,12 +12,12 @@ import adminRoutes from "./routes/admin.routes.js";
 import cardRoutes from "./routes/card.routes.js";
 import deviceRoutes from "./routes/device.routes.js";
 import userInfoRoutes from "./routes/userInfo.routes.js";
+import checkInRoutes from "./routes/check-in.routes.js";
 import checkOutRoutes from "./routes/checkout.routes.js";
 import monthlyCardRoutes from "./routes/monthlyCard.routes.js";
-import { createParkingSession } from "./services/checkIn.services.js";
 import viewReportRoutes from "./routes/viewReports.routes.js";
-// import searchRoutes from "./routes/searches.routes.js"
 import searchRoutes from "./routes/searches.routes.js";
+import authRoutes from "./routes/auth.routes.js";
 
 dotenv.config();
 
@@ -32,6 +32,9 @@ app.use(
     credentials: true, // Cho phép gửi cookie/session
   })
 );
+
+// ✅ Serve static files từ thư mục data
+app.use('/data', express.static('data'));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -78,8 +81,11 @@ app.use(
 // ErrorHandler Middleware
 
 // Mount routers (keep server.js minimal)
+//  Auth routes (login/logout)
+app.use('/api/auth', authRoutes);
+
 app.use('/', userRoutes);
-app.use('/api/check-in', createParkingSession); // check-in
+app.use('/api/check-in', checkInRoutes); //  Check-in route
 app.use('/api/manage-sessions', parkingSessionRoutes); // manage sessions check-in
 app.use('/api/admins', adminRoutes);
 app.use('/api/manage-cards', cardRoutes);

@@ -10,7 +10,7 @@ router.get("/", deviceController.getAllDevices);
 router.get("/:id", deviceController.getDeviceById);
 
 // GET devices by location
-router.get("/location/:location", deviceController.getDevicesByLocation);
+// router.get("/location/:location", deviceController.getDevicesByLocation);
 
 // POST create new device
 router.post("/", deviceController.createDevice);

@@ -116,13 +116,20 @@ export const searchCardByNumber = async (req, res) => {
  */
 export const createCard = async (req, res) => {
   try {
-    const { cardNumber, balance, status } = req.body;
+    const { cardNumber, price} = req.body;
 
     // Validation
     if (!cardNumber) {
       return res.status(400).json({
         success: false,
         message: "Thiếu thông tin số thẻ (cardNumber)",
+      });
+    }
+
+    if(!price) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu thông tin giá tiền của thẻ (price)",
       });
     }
 
@@ -138,8 +145,11 @@ export const createCard = async (req, res) => {
     // Chuẩn bị dữ liệu
     const cardData = {
       cardNumber: cardNumber.trim(),
-      balance: balance || 0, // Mặc định số dư = 0
-      status: status || "active", // Mặc định trạng thái = active
+      price: price,
+      type : 0, // Mặc định là thẻ thường
+      isActive : 1, // Mặc định là đang kích hoạt
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     // Tạo thẻ mới
@@ -169,7 +179,7 @@ export const createCard = async (req, res) => {
 export const updateCard = async (req, res) => {
   try {
     const { id } = req.params;
-    const { cardNumber, balance, status } = req.body;
+    const { cardNumber, isActive, price } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -193,18 +203,33 @@ export const updateCard = async (req, res) => {
       if (duplicateCard) {
         return res.status(400).json({
           success: false,
-          message: "Số thẻ này đã tồn tại",
+          message: "Số thẻ này đã tồn tại vui lòng chọn số thẻ khác",
         });
       }
     }
 
-    // Chuẩn bị dữ liệu cập nhật (chỉ cập nhật các trường được gửi)
+    //  Chuẩn bị dữ liệu cập nhật (chỉ cập nhật các trường được gửi)
     const updateData = {};
-    if (cardNumber !== undefined) updateData.cardNumber = cardNumber.trim();
-    if (balance !== undefined) updateData.balance = balance;
-    if (status !== undefined) updateData.status = status;
+    
+    if (cardNumber !== undefined) {
+      updateData.cardNumber = cardNumber.trim();
+    }
+    
+    if (isActive !== undefined) {
+      //  Convert sang BOOLEAN
+      updateData.isActive = isActive === true || isActive === 'true' || isActive === 1 ? true : false;
+      console.log(' isActive convert:', updateData.isActive);
+    }
+    
+    if (price !== undefined) {
+      //  Convert sang số
+      updateData.price = parseInt(price, 10);
+      console.log(' price convert:', updateData.price);
+    }
+  
+    console.log(' Update data gửi lên repository:', updateData);
 
-    // Cập nhật
+    //  Cập nhật (Sequelize sẽ tự động gán updatedAt)
     const updatedCard = await cardRepository.update(id, updateData);
 
     res.status(200).json({
@@ -226,55 +251,55 @@ export const updateCard = async (req, res) => {
  * PATCH /api/manage-cards/:id/recharge
  * Body: { amount }
  */
-export const rechargeCard = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { amount } = req.body;
+// export const rechargeCard = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { amount } = req.body;
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "Thiếu thông tin ID thẻ",
-      });
-    }
+//     if (!id) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Thiếu thông tin ID thẻ",
+//       });
+//     }
 
-    if (!amount || amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Số tiền nạp không hợp lệ",
-      });
-    }
+//     if (!amount || amount <= 0) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Số tiền nạp không hợp lệ",
+//       });
+//     }
 
-    // Lấy thẻ hiện tại
-    const card = await cardRepository.findById(id);
-    if (!card) {
-      return res.status(404).json({
-        success: false,
-        message: "Thẻ không tồn tại",
-      });
-    }
+//     // Lấy thẻ hiện tại
+//     const card = await cardRepository.findById(id);
+//     if (!card) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Thẻ không tồn tại",
+//       });
+//     }
 
-    // Cộng tiền vào balance
-    const newBalance = (card.balance || 0) + parseFloat(amount);
+//     // Cộng tiền vào balance
+//     const newBalance = (card.balance || 0) + parseFloat(amount);
 
-    // Cập nhật
-    const updatedCard = await cardRepository.update(id, {
-      balance: newBalance,
-    });
+//     // Cập nhật
+//     const updatedCard = await cardRepository.update(id, {
+//       balance: newBalance,
+//     });
 
-    res.status(200).json({
-      success: true,
-      message: `Nạp tiền thành công. Số dư mới: ${newBalance}`,
-      data: updatedCard,
-    });
-  } catch (error) {
-    console.error("Lỗi khi nạp tiền thẻ:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Lỗi máy chủ nội bộ",
-    });
-  }
-};
+//     res.status(200).json({
+//       success: true,
+//       message: `Nạp tiền thành công. Số dư mới: ${newBalance}`,
+//       data: updatedCard,
+//     });
+//   } catch (error) {
+//     console.error("Lỗi khi nạp tiền thẻ:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message || "Lỗi máy chủ nội bộ",
+//     });
+//   }
+// };
 
 // ========== DELETE ==========
 
@@ -319,12 +344,87 @@ export const deleteCard = async (req, res) => {
   }
 };
 
+export const updateAllCardPrices = async (req, res) => {
+  try {
+    const updatedCards = await cardRepository.findAll();
+
+    const { price } = req.body;
+
+    if(!price) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu thông tin giá tiền của thẻ (price)",
+      });
+    }
+
+    for (const card of updatedCards) {
+      let newPrice = 0; 
+      if (card.type === 0) {
+        newPrice = price;
+      }
+      else if (card.type === 1) {
+        // newPrice = 150000;
+        // Giữ nguyên giá thẻ tháng
+        newPrice = card.price;
+      }
+      await cardRepository.update(card.id, { price: newPrice });
+    }
+
+
+    res.status(200).json({
+      success: true,
+      message: "Cập nhật giá thẻ thành công",
+      data: updatedCards,
+    });
+  } catch (error) {
+    console.error("Lỗi khi cập nhật giá thẻ:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Lỗi máy chủ nội bộ",
+    });
+  }
+};
+
+const getCardByCardNumber = async (req, res) => {
+  try {
+    const { cardNumber } = req.params;
+    console.log("Received cardNumber:", cardNumber);
+    if (!cardNumber) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu số thẻ để tìm kiếm",
+      });
+    }
+
+    const card = await cardRepository.findByCardNumber(cardNumber);
+    if (!card) {
+      return res.status(404).json({
+        success: false,
+        message: "Card not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: card,
+    });
+  }catch (error) {
+    console.error("Lỗi khi lấy thông tin thẻ:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Lỗi máy chủ nội bộ",
+    });
+  }
+};
+
 export default {
   getAllCards,
   getCardById,
   searchCardByNumber,
   createCard,
   updateCard,
-  rechargeCard,
+  // rechargeCard,
   deleteCard,
+  updateAllCardPrices,
+  getCardByCardNumber,
 };

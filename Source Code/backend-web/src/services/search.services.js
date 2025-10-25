@@ -17,11 +17,10 @@ export const getListActiveVehicle = async (req, res) => {
             });
         }
 
-        console.log(`🔍 Tìm xe theo biển số: ${licensePlate}`);
+        console.log(`Tìm xe theo biển số: ${licensePlate}`);
         const vehicles = await parkingSessionRepository.findByLicensePlate(licensePlate);
 
-
-        // ✅ SỮA: Map vehicles với cardType (gọi await isMonth)
+        // Map vehicles với cardType (gọi await isMonth)
         const vehiclesWithCardType = await Promise.all(
             vehicles.map(async (v) => ({
                 id: v.id,
@@ -29,9 +28,9 @@ export const getListActiveVehicle = async (req, res) => {
                 cardId: v.cardId,
                 timeStart: v.timeStart,
                 imageUrl: v.imageUrl,
-                cardType: (await isMonth(v.cardId)) ? "tháng" : "thường",  // ✅ Await
+                cardType: (await isMonth(v.cardId)) ? "tháng" : "thường",  //  Await
                 amount: v.amount,
-                status: "đang gửi"
+                status: (v.timeEnd ? "Đã checkout" : "Đang gửi"),
             }))
         );
 
@@ -59,6 +58,150 @@ async function isMonth(cardId) {
     return false;
 }
 
+// Export tất cả các dịch vụ tìm kiếm
+
+const getVehicleHistory = async (req, res) => {
+    try {
+        const listCurrentVehicles = await parkingSessionRepository.getListSessionCurrent();
+        res.status(200).json({
+            success: true,
+            count: listCurrentVehicles.length,
+            data: listCurrentVehicles,
+        });
+        
+    } catch (error) {
+        console.error("Error in getVehicleHistoryByLicensePlate:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+
+const getCardHistory = async (req, res) => {
+    try {
+        const listHistoryVehicles = await parkingSessionRepository.getListSessionHistory();
+        res.status(200).json({
+            success: true,
+            count: listHistoryVehicles.length,
+            data: listHistoryVehicles,
+        });
+    } catch (error) {
+        console.error("Error in getCardHistoryByCardId:", error);
+        res.status(500).json({  
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+const getCardHistoryByCardId = async (req, res) => {
+    try {
+        const { licensePlate } = req.body;
+        
+        //  Validation: kiểm tra licensePlate có được gửi không
+        if (!licensePlate) {
+            return res.status(400).json({
+                success: false,
+                message: "Biển số xe không được để trống",
+            });
+        }
+
+        console.log(`🔍 Tìm lịch sử xe với biển số: ${licensePlate}`);
+        
+        // Lấy toàn bộ lịch sử xe đã checkout
+        const allHistoryVehicles = await parkingSessionRepository.getListSessionHistory();
+        
+        //  Filter theo licensePlate
+        const filteredVehicles = allHistoryVehicles.filter(
+            (vehicle) => vehicle.licensePlate === licensePlate
+        );
+        
+        console.log(` Tìm được ${filteredVehicles.length} record(s) cho biển số ${licensePlate}`);
+        
+        //  Nếu không tìm thấy, báo lỗi
+        if (filteredVehicles.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: `Không tìm thấy lịch sử xe với biển số ${licensePlate}`,
+                licensePlate: licensePlate,
+            });
+        }
+        
+        res.status(200).json({
+            success: true,
+            message: "Lấy lịch sử xe thành công",
+            licensePlate: licensePlate,
+            count: filteredVehicles.length,
+            data: filteredVehicles,
+        });
+    } catch (error) {
+        console.error("Error in getCardHistoryByCardId:", error);
+        res.status(500).json({  
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+const getVehicleHistoryByLicensePlate = async (req, res) => {
+    try {
+        const { licensePlate } = req.body;
+        
+        //  Validation: kiểm tra licensePlate có được gửi không
+        if (!licensePlate) {
+            return res.status(400).json({
+                success: false,
+                message: "Biển số xe không được để trống",
+            });
+        }
+
+        console.log(` Tìm xe đang gửi với biển số: ${licensePlate}`);
+        
+        // Lấy toàn bộ xe đang gửi (chưa checkout)
+        const allCurrentVehicles = await parkingSessionRepository.getListSessionCurrent();
+        
+        //  Filter theo licensePlate
+        const filteredVehicles = allCurrentVehicles.filter(
+            (vehicle) => vehicle.licensePlate === licensePlate
+        );
+        
+        console.log(` Tìm được ${filteredVehicles.length} xe đang gửi với biển số ${licensePlate}`);
+        
+        //  Nếu không tìm thấy, báo lỗi
+        if (filteredVehicles.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: `Không tìm thấy xe đang gửi với biển số ${licensePlate}`,
+                licensePlate: licensePlate,
+            });
+        }
+        
+        res.status(200).json({
+            success: true,
+            message: "Lấy danh sách xe đang gửi thành công",
+            licensePlate: licensePlate,
+            count: filteredVehicles.length,
+            data: filteredVehicles,
+        });
+        
+    } catch (error) {
+        console.error("Error in getVehicleHistoryByLicensePlate:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+
+
 export default {
     getListActiveVehicle,
+    getVehicleHistory,
+    getCardHistory,
+    getCardHistoryByCardId,
+    getVehicleHistoryByLicensePlate,
 };
+

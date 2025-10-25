@@ -34,15 +34,16 @@ class UserInfoRepository {
     }
   }
 
-  // Get user info by email
-  async findByEmail(email) {
+   async findByLicensePlate(licensePlate) {
     try {
-      const userInfo = await UserInfo.findOne({ where: { email } });
+      const userInfo = await UserInfo.findOne({ where: { licensePlate } });
       return userInfo;
     } catch (error) {
-      throw new Error(`Error fetching user info by email: ${error.message}`);
+      throw new Error(`Error fetching user info by license plate: ${error.message}`);
     }
   }
+
+
 
   // Create a new user info
   async create(data) {
@@ -50,7 +51,10 @@ class UserInfoRepository {
       const userInfo = await UserInfo.create(data);
       return userInfo;
     } catch (error) {
-      throw new Error(`Error creating user info: ${error.message}`);
+      // ✅ Log chi tiết lỗi
+      console.error('❌ Sequelize validation error:', error.errors);
+      console.error('❌ Error detail:', error.message);
+      throw new Error(`Error creating user info: ${error.errors?.[0]?.message || error.message}`);
     }
   }
 

@@ -72,14 +72,14 @@ function calculateTotalRevenueCurrentDay(sessions) {
   let totalRevenue = 0;
 
   sessions.forEach(session => {
-    if (!session.timeEnd) {
+    if (!session.timeEnd ) {
       console.log('Bỏ qua session chưa checkout:', session.id);
       return;
     }
 
     const endTime = new Date(session.timeEnd);
     if (isSameDay(endTime, today)) {
-      const sessionAmount = Number(session.amount) || 0;
+      const sessionAmount = Number(session.price) || 0;
       totalRevenue += sessionAmount;
       console.log(`+${sessionAmount}đ từ session ${session.id} (${endTime.toLocaleString('vi-VN')})`);
     }
@@ -110,7 +110,7 @@ function calculateTotalRevenueCurrentMonth(sessions) {
     const endYear = endTime.getFullYear();
 
     if (endMonth === currentMonth && endYear === currentYear) {
-      const sessionAmount = Number(session.amount) || 0;
+      const sessionAmount = Number(session.price) || 0;
       totalRevenue += sessionAmount;
       console.log(`+${sessionAmount}đ từ session ${session.id} (${endTime.toLocaleString('vi-VN')})`);
     }

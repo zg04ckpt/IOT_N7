@@ -22,13 +22,13 @@ import cardRepository from "../repository/cardRepository.js";
  */
 export const registerMonthlyCard = async (req, res) => {
   try {
-    const { name, phoneNumber, cardId, licensePlate } = req.body;
+    const { name, phoneNumber, cardId, licensePlate, price } = req.body;
 
     // ========== VALIDATION ==========
-    if (!name || !phoneNumber || !cardId || !licensePlate) {
+    if (!name || !phoneNumber || !cardId || !licensePlate ) {
       return res.status(400).json({
         success: false,
-        message: "Thiếu thông tin bắt buộc: name, phoneNumber, cardId, licensePlate",
+        message: "Thiếu thông tin bắt buộc: name, phoneNumber, cardId, licensePlatel",
       });
     }
 
@@ -48,6 +48,19 @@ export const registerMonthlyCard = async (req, res) => {
         success: false,
         message: "Thẻ không tồn tại",
       });
+    }else if (card.type === 1 && card.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: "Thẻ đã được đăng kí vé tháng và đang hoạt động",
+      });
+    }
+
+    const checkExistingUser = await userInfoRepository.findByLicensePlate(licensePlate);
+    if (checkExistingUser) {
+      return res.status(400).json({
+        success: false,
+        message: "Biển số xe đã được đăng kí vé tháng",
+      });
     }
 
     // ========== TẠO USER INFO MỚI ==========
@@ -64,10 +77,20 @@ export const registerMonthlyCard = async (req, res) => {
 
     // ========== CẬP NHẬT CARD THÀNH VÉ THÁNG ==========
     // type = 1 ứng với vé tháng
-    const updatedCard = await cardRepository.update(cardId, {
+    const cardUpdateData = {
       type: 1, // 1 = vé tháng
       isActive: true, // Kích hoạt thẻ
-    });
+    };
+  
+    //  Nếu có price, convert sang số
+    if (price !== undefined && price !== null) {
+      cardUpdateData.price = parseInt(price, 10);
+      console.log(' Price convert:', cardUpdateData.price);
+    }
+    
+    console.log(' Card update data:', cardUpdateData);
+    
+    const updatedCard = await cardRepository.update(cardId, cardUpdateData);
 
     // ========== TRẢ VỀ KẾT QUẢ THÀNH CÔNG ==========
     res.status(201).json({
@@ -149,6 +172,7 @@ export const getMonthlyCardUserById = async (req, res) => {
     }
 
     const userInfo = await userInfoRepository.findById(userId);
+  
 
     if (!userInfo) {
       return res.status(404).json({
@@ -195,13 +219,13 @@ export const updateMonthlyCardUser = async (req, res) => {
     }
 
     // Kiểm tra UserInfo tồn tại
-    const existingUser = await userInfoRepository.findById(userId);
-    if (!existingUser) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy thông tin người gửi xe",
-      });
-    }
+    // const existingUser = await userInfoRepository.findById(userId);
+    // if (!existingUser) {
+    //   return res.status(404).json({
+    //     success: false,
+    //     message: "Không tìm thấy thông tin người gửi xe",
+    //   });
+    // }
 
     // Chuẩn bị dữ liệu cập nhật
     const updateData = {};
@@ -276,6 +300,7 @@ export const cancelMonthlyCard = async (req, res) => {
       });
     }
 
+    
     res.status(200).json({
       success: true,
       message: "Hủy vé tháng thành công",

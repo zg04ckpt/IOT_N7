@@ -1,4 +1,5 @@
 import ParkingSession from "../models/ParkingSession.js";
+import { Op } from "sequelize";
 
 // Repository pattern for ParkingSession
 // Encapsulates all database queries related to parking sessions
@@ -86,6 +87,42 @@ class ParkingSessionRepository {
     } catch (error) {
       throw new Error(
         `Error fetching parking sessions by card ID: ${error.message}`
+      );
+    }
+  }
+
+  //  Lấy danh sách xe đang đỗ (chưa check-out: timeEnd = null)
+  // Sắp xếp theo thời gian gần nhất (DESC - mới nhất trước)
+  async getListSessionCurrent() {
+    try {
+      const sessions = await ParkingSession.findAll({
+        where: { timeEnd: null }, // Chỉ lấy session chưa check-out
+        order: [['timeStart', 'DESC']], // Sắp xếp theo thời gian bắt đầu (mới nhất trước)
+      });
+      return sessions;
+    } catch (error) {
+      throw new Error(
+        `Error fetching current parking sessions: ${error.message}`
+      );
+    }
+  }
+
+  // Lấy danh sách xe đã gửi (đã check-out: timeEnd != null)
+  // Sắp xếp theo thời gian check-out gần nhất (DESC - mới nhất trước)
+  async getListSessionHistory() {
+    try {
+      const sessions = await ParkingSession.findAll({
+        where: { 
+          timeEnd: {
+            [Op.not]: null // timeEnd != null
+          }
+        },
+        order: [['timeEnd', 'DESC']], // Sắp xếp theo thời gian check-out (mới nhất trước)
+      });
+      return sessions;
+    } catch (error) {
+      throw new Error(
+        `Error fetching parking session history: ${error.message}`
       );
     }
   }

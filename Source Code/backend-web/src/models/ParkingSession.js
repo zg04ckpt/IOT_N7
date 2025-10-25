@@ -29,6 +29,12 @@ const ParkingSession = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    price: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: "Giá tiền tính theo phút hoặc giờ"
+    },
     imageUrl: {
       type: DataTypes.STRING(255),
       allowNull: false,

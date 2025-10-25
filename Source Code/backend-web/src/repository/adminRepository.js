@@ -34,6 +34,16 @@ class AdminRepository {
     }
   }
 
+  // ✅ Get admin by username (dùng cho login)
+  async findByUsername(username) {
+    try {
+      const admin = await Admin.findOne({ where: { username } });
+      return admin;
+    } catch (error) {
+      throw new Error(`Error fetching admin by username: ${error.message}`);
+    }
+  }
+
   // Create a new admin
   async create(data) {
     try {
