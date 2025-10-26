@@ -1,8 +1,5 @@
 import cardRepository from "../repository/cardRepository.js";
 
-// Controller for card endpoints
-// Handles business logic and responds to HTTP requests
-
 export const getAllCards = async (req, res) => {
   try {
     const cards = await cardRepository.findAll();

@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -17,29 +18,63 @@ import Animated, {
   FadeInUp,
   BounceIn,
 } from "react-native-reanimated";
-import { ParkingInfo } from "@/components/ParkingInfo";
-import { mockParkingData } from "@/utils/mockData";
+import { getVehicleInfoByLicensePlate } from "@/api/vehicle";
+import { VehicleInfo } from "@/types/vehicle";
+import { ApiResponse } from "@/utils/ApiResponse";
+import {
+  formatTimeElapsed,
+  formatTimeElapsedDetailed,
+  formatCurrency,
+  formatDate,
+  getCardTypeText,
+  getStatusColor,
+} from "@/utils/helpers";
+import { VehicleImage } from "@/components/VehicleImage";
 
 const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
   const [licensePlate, setLicensePlate] = useState("");
-  const [parkingData, setParkingData] = useState<any>(null);
+  const [parkingData, setParkingData] = useState<VehicleInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleLicensePlateChange = (text: string) => {
+    setLicensePlate(text);
+    if (searched) {
+      setSearched(false);
+      setParkingData(null);
+      setError(null);
+    }
+  };
 
   const handleSearch = async () => {
     if (!licensePlate.trim()) return;
 
     setLoading(true);
     setSearched(false);
+    setError(null);
+    setParkingData(null);
 
-    setTimeout(() => {
-      const data = mockParkingData(licensePlate.toUpperCase());
-      setParkingData(data);
-      setLoading(false);
+    try {
+      const response: ApiResponse<VehicleInfo[]> =
+        await getVehicleInfoByLicensePlate(licensePlate.toUpperCase());
+
+      if (response.success && response.data && response.data.length > 0) {
+        setParkingData(response.data[0]);
+        setSearched(true);
+      } else {
+        setError("Không tìm thấy xe với biển số này");
+        setSearched(true);
+      }
+    } catch (err: any) {
+      console.error("Lỗi tìm kiếm xe:", err);
+      setError("Có lỗi xảy ra khi tìm kiếm xe");
       setSearched(true);
-    }, 1000);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,7 +86,11 @@ export default function HomeScreen() {
         >
           <View style={styles.logoContainer}>
             <View style={styles.logo}>
-              <Text style={styles.logoIcon}>🚗</Text>
+              <Image
+                source={require("../public/android-chrome-192x192.png")}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <View>
               <Text style={styles.headerTitle}>Smart Parking</Text>
@@ -85,7 +124,7 @@ export default function HomeScreen() {
               placeholder="30A-12345"
               placeholderTextColor="#94A3B8"
               value={licensePlate}
-              onChangeText={setLicensePlate}
+              onChangeText={handleLicensePlateChange}
               autoCapitalize="characters"
               returnKeyType="search"
               onSubmitEditing={handleSearch}
@@ -121,13 +160,137 @@ export default function HomeScreen() {
             style={styles.statusBadge}
           >
             <Text style={styles.statusIcon}>✓</Text>
-            <Text style={styles.statusText}>Xe đang gửi</Text>
+            <Text style={styles.statusText}>
+              Tìm thấy xe với biển số {licensePlate}
+            </Text>
           </Animated.View>
         )}
 
-        {searched && parkingData && <ParkingInfo data={parkingData} />}
+        {searched && parkingData && (
+          <Animated.View entering={FadeInUp.delay(400)}>
+            <View style={styles.vehicleCard}>
+              <View style={styles.vehicleHeader}>
+                <Text style={styles.vehicleTitle}>Thông tin xe</Text>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor:
+                        getStatusColor(parkingData.status) === "#4CAF50"
+                          ? "#D1FAE5"
+                          : "#FEF3C7",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusText,
+                      { color: getStatusColor(parkingData.status) },
+                    ]}
+                  >
+                    {parkingData.status}
+                  </Text>
+                </View>
+              </View>
 
-        {searched && !parkingData && (
+              <View style={styles.vehicleInfo}>
+                {/* Hình ảnh xe */}
+                {parkingData.imageUrl && (
+                  <VehicleImage
+                    imageUrl={parkingData.imageUrl}
+                    vehicleId={parkingData.id}
+                  />
+                )}
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Biển số xe:</Text>
+                  <Text style={styles.infoValue}>
+                    {parkingData.licensePlate}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Loại thẻ:</Text>
+                  <Text style={styles.infoValue}>
+                    {getCardTypeText(parkingData.cardType)}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Thời gian vào:</Text>
+                  <Text style={styles.infoValue}>
+                    {formatDate(parkingData.timeStart)}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Thời gian đã gửi:</Text>
+                  <Text style={styles.infoValue}>
+                    {formatTimeElapsedDetailed(
+                      parkingData.timeElapsedMinutes,
+                      parkingData.timeElapsedSeconds
+                    )}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Số tiền phải trả:</Text>
+                  <Text style={[styles.infoValue, styles.amountText]}>
+                    {formatCurrency(parkingData.amountToPay)}
+                  </Text>
+                </View>
+
+                {parkingData.monthlyTicketInfo && (
+                  <View style={styles.monthlyTicketSection}>
+                    <Text style={styles.monthlyTicketTitle}>
+                      Thông tin vé tháng
+                    </Text>
+                    <View style={styles.monthlyTicketInfo}>
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Tên chủ xe:</Text>
+                        <Text style={styles.infoValue}>
+                          {parkingData.monthlyTicketInfo.name}
+                        </Text>
+                      </View>
+
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Ngày bắt đầu:</Text>
+                        <Text style={styles.infoValue}>
+                          {parkingData.monthlyTicketInfo.startDate}
+                        </Text>
+                      </View>
+
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Ngày kết thúc:</Text>
+                        <Text style={styles.infoValue}>
+                          {parkingData.monthlyTicketInfo.endDate}
+                        </Text>
+                      </View>
+
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Số ngày còn lại:</Text>
+                        <Text
+                          style={[
+                            styles.infoValue,
+                            {
+                              color: parkingData.monthlyTicketInfo.isActive
+                                ? "#059669"
+                                : "#DC2626",
+                            },
+                          ]}
+                        >
+                          {parkingData.monthlyTicketInfo.daysRemaining} ngày
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
+        {searched && !parkingData && !error && (
           <Animated.View
             entering={FadeInUp.delay(300)}
             style={styles.noDataContainer}
@@ -137,6 +300,17 @@ export default function HomeScreen() {
             <Text style={styles.noDataSubtext}>
               Vui lòng kiểm tra lại biển số xe
             </Text>
+          </Animated.View>
+        )}
+
+        {searched && error && (
+          <Animated.View
+            entering={FadeInUp.delay(300)}
+            style={styles.errorContainer}
+          >
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorSubtext}>Vui lòng thử lại sau</Text>
           </Animated.View>
         )}
       </ScrollView>
@@ -178,9 +352,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "rgba(255, 255, 255, 0.3)",
+    overflow: "hidden",
   },
-  logoIcon: {
-    fontSize: 28,
+  logoImage: {
+    width: 40,
+    height: 40,
   },
   headerTitle: {
     fontSize: 24,
@@ -316,5 +492,101 @@ const styles = StyleSheet.create({
   noDataSubtext: {
     fontSize: 15,
     color: "#64748B",
+  },
+  vehicleCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    marginTop: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  vehicleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  vehicleTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  vehicleInfo: {
+    gap: 12,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  infoLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+    flex: 1,
+  },
+  infoValue: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#0F172A",
+    flex: 1,
+    textAlign: "right",
+  },
+  amountText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#059669",
+  },
+  monthlyTicketSection: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  monthlyTicketTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 12,
+  },
+  monthlyTicketInfo: {
+    gap: 8,
+  },
+  errorContainer: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 20,
+    padding: 40,
+    alignItems: "center",
+    marginTop: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#DC2626",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  errorSubtext: {
+    fontSize: 15,
+    color: "#7F1D1D",
+    textAlign: "center",
   },
 });

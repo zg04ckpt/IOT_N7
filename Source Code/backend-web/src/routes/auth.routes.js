@@ -1,21 +1,13 @@
 import express from "express";
 import authService from "../services/auth.services.js";
-import verifyToken from "../middlewares/authJWT.js";
+import { protect } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-/**
- * LOGIN
- * POST /api/auth/login
- * Body: { username, password }
- */
 router.post("/login", authService.loginAdmin);
 
-/**
- * LOGOUT
- * POST /api/auth/logout
- * Header: Authorization: Bearer <token>
- */
-router.post("/logout", verifyToken, authService.logoutAdmin);
+router.post("/logout", protect, authService.logoutAdmin);
+
+router.get("/me", protect, authService.getCurrentUser);
 
 export default router;

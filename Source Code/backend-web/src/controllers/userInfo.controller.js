@@ -1,8 +1,5 @@
 import userInfoRepository from "../repository/userInfoRepository.js";
 
-// Controller for user info endpoints
-// Handles business logic and responds to HTTP requests
-
 export const getAllUserInfos = async (req, res) => {
   try {
     const userInfos = await userInfoRepository.findAll();

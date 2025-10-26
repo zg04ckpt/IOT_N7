@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Grid,
@@ -8,6 +8,8 @@ import {
   CardContent,
   Typography,
   LinearProgress,
+  CircularProgress,
+  Alert,
   Table,
   TableBody,
   TableCell,
@@ -15,17 +17,33 @@ import {
   TableHead,
   TableRow,
   Chip,
+  TablePagination,
 } from "@mui/material";
+import LoadingScreen from "../components/LoadingScreen";
 import { motion } from "framer-motion";
 import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
 import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
 import TimerIcon from "@mui/icons-material/Timer";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TrendingDownIcon from "@mui/icons-material/TrendingDown";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
+import DevicesIcon from "@mui/icons-material/Devices";
+
+import { getReports } from "../api/report";
 
 const MotionCard = motion(Card);
 const MotionBox = motion(Box);
 
-const StatCard = ({ title, value, icon: Icon, color, delay }) => (
+const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  color,
+  delay,
+  subtitle,
+  chart,
+}) => (
   <MotionCard
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -44,13 +62,19 @@ const StatCard = ({ title, value, icon: Icon, color, delay }) => (
           alignItems: "flex-start",
         }}
       >
-        <Box>
+        <Box sx={{ flex: 1 }}>
           <Typography color="textSecondary" gutterBottom>
             {title}
           </Typography>
           <Typography variant="h3" sx={{ mt: 1 }}>
             {value}
           </Typography>
+          {subtitle && (
+            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+              {subtitle}
+            </Typography>
+          )}
+          {chart && <Box sx={{ mt: 2 }}>{chart}</Box>}
         </Box>
         <Box
           sx={{
@@ -72,57 +96,92 @@ const StatCard = ({ title, value, icon: Icon, color, delay }) => (
 );
 
 export default function Dashboard() {
-  const [stats] = useState({
-    currentVehicles: 156,
-    dailyRevenue: "12,500,000 VND",
-    avgParkingTime: "4h 32m",
-    peakHour: "18:00 - 19:00",
-    monthlyTickets: 342,
-    activeDevices: 8,
-  });
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const [recentParking] = useState([
-    {
-      id: 1,
-      plate: "29A-12345",
-      type: "Ô tô",
-      checkIn: "14:30",
-      status: "Đang gửi",
-      amount: "-",
-    },
-    {
-      id: 2,
-      plate: "30B-67890",
-      type: "Xe máy",
-      checkIn: "14:15",
-      status: "Đã thanh toán",
-      amount: "50,000",
-    },
-    {
-      id: 3,
-      plate: "31C-11111",
-      type: "Ô tô",
-      checkIn: "13:45",
-      status: "Đã thanh toán",
-      amount: "120,000",
-    },
-    {
-      id: 4,
-      plate: "32D-22222",
-      type: "Xe máy",
-      checkIn: "13:20",
-      status: "Đã thanh toán",
-      amount: "40,000",
-    },
-    {
-      id: 5,
-      plate: "33E-33333",
-      type: "Ô tô",
-      checkIn: "12:50",
-      status: "Đã thanh toán",
-      amount: "100,000",
-    },
-  ]);
+  const [devicePage, setDevicePage] = useState(0);
+  const [deviceRowsPerPage, setDeviceRowsPerPage] = useState(5);
+
+  useEffect(() => {
+    const fetchReportData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await getReports();
+        console.log(response);
+        if (response.data.success) {
+          setReportData(response.data);
+        } else {
+          setError("Không thể tải dữ liệu báo cáo");
+        }
+      } catch (err) {
+        console.error("Error fetching report data:", err);
+        setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchReportData();
+  }, []);
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(amount);
+  };
+
+  const formatGrowth = (percentage) => {
+    const isNegative = percentage < 0;
+    const color = isNegative ? "#f44336" : "#4caf50";
+    const icon = isNegative ? TrendingDownIcon : TrendingUpIcon;
+    const sign = isNegative ? "" : "+";
+
+    return {
+      value: `${sign}${percentage}%`,
+      color,
+      icon,
+      isNegative,
+    };
+  };
+
+  const handleDevicePageChange = (event, newPage) => {
+    setDevicePage(newPage);
+  };
+
+  const handleDeviceRowsPerPageChange = (event) => {
+    setDeviceRowsPerPage(Number.parseInt(event.target.value, 10));
+    setDevicePage(0);
+  };
+
+  if (loading) {
+    return <LoadingScreen message="Đang tải dashboard..." />;
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error">{error}</Alert>
+      </Box>
+    );
+  }
+
+  if (!reportData) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="warning">Không có dữ liệu để hiển thị</Alert>
+      </Box>
+    );
+  }
+
+  const growthPercentage = reportData.yesterdayRevenue
+    ? ((reportData.totalRevenueCurrentDay - reportData.yesterdayRevenue) /
+        reportData.yesterdayRevenue) *
+      100
+    : 0;
+  const growthData = formatGrowth(growthPercentage);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -141,199 +200,273 @@ export default function Dashboard() {
         </Typography>
       </MotionBox>
 
-      {/* Stats Grid */}
+      {/* Main Stats Grid */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Phương tiện hiện tại"
-            value={stats.currentVehicles}
+            value={reportData.currentVehiclesCount}
             icon={DirectionsCarIcon}
             color="#1e88e5"
             delay={0}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Doanh thu hôm nay"
-            value={stats.dailyRevenue}
+            value={formatCurrency(reportData.totalRevenueCurrentDay)}
             icon={AttachMoneyIcon}
             color="#4caf50"
             delay={0.1}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Doanh thu tháng"
+            value={formatCurrency(reportData.totalRevenueCurrentMonth)}
+            icon={AttachMoneyIcon}
+            color="#2e7d32"
+            delay={0.2}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Thời gian gửi trung bình"
-            value={stats.avgParkingTime}
+            value={reportData.averageParkingDuration}
             icon={TimerIcon}
             color="#ff9800"
-            delay={0.2}
+            delay={0.3}
           />
         </Grid>
       </Grid>
 
       {/* Additional Stats */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={3}>
         <Grid item xs={12} sm={6} md={3}>
-          <MotionCard
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            sx={{ height: "100%" }}
-          >
-            <CardContent
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                flexDirection: "column",
-                height: "100%",
-              }}
-            >
-              <Typography color="textSecondary" gutterBottom>
-                Giờ cao điểm
-              </Typography>
-              <Typography variant="h4" sx={{ mt: 1 }}>
-                {stats.peakHour}
-              </Typography>
-            </CardContent>
-          </MotionCard>
+          <StatCard
+            title="Giờ cao điểm"
+            value={reportData.peakHour}
+            icon={AccessTimeIcon}
+            color="#9c27b0"
+            delay={0.4}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <MotionCard
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            sx={{ height: "100%" }}
-          >
-            <CardContent
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                flexDirection: "column",
-                height: "100%",
-              }}
-            >
-              <Typography color="textSecondary" gutterBottom>
-                Vé tháng hoạt động
-              </Typography>
-              <Typography variant="h4" sx={{ mt: 1 }}>
-                {stats.monthlyTickets}
-              </Typography>
-            </CardContent>
-          </MotionCard>
+          <StatCard
+            title="Ngày cao điểm"
+            value={reportData.peakDay}
+            icon={AccessTimeIcon}
+            color="#673ab7"
+            delay={0.5}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <MotionCard
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.5 }}
-          >
-            <CardContent
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                flexDirection: "column",
-                height: "100%",
-              }}
-            >
-              <Typography color="textSecondary" gutterBottom>
-                Thiết bị hoạt động
-              </Typography>
-              <Typography variant="h4" sx={{ mt: 1 }}>
-                {stats.activeDevices}/8
-              </Typography>
+          <StatCard
+            title="Tổng vé tháng"
+            value={reportData.totalMonthlyTickets}
+            icon={ConfirmationNumberIcon}
+            color="#2196f3"
+            delay={0.6}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Thiết bị hoạt động"
+            value={`${reportData.activeDevices?.length || 0}/${
+              reportData.totalDevices
+            }`}
+            icon={DevicesIcon}
+            color="#00bcd4"
+            delay={0.7}
+            chart={
               <LinearProgress
                 variant="determinate"
-                value={(stats.activeDevices / 8) * 100}
-                sx={{ mt: 2 }}
+                value={
+                  ((reportData.activeDevices?.length || 0) /
+                    reportData.totalDevices) *
+                  100
+                }
+                sx={{
+                  mt: 1,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: "rgba(0, 188, 212, 0.2)",
+                  "& .MuiLinearProgress-bar": {
+                    backgroundColor: "#00bcd4",
+                    borderRadius: 4,
+                  },
+                }}
               />
-            </CardContent>
-          </MotionCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <MotionCard
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.5 }}
-            sx={{ height: "100%" }}
-          >
-            <CardContent
-              sx={{
-                display: "flex",
-                justifyContent: "center",
-                flexDirection: "column",
-                height: "100%",
-              }}
-            >
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <TrendingUpIcon sx={{ color: "#4caf50" }} />
-                <Box>
-                  <Typography color="textSecondary" variant="caption">
-                    Tăng trưởng
-                  </Typography>
-                  <Typography variant="h4">+12.5%</Typography>
-                </Box>
-              </Box>
-            </CardContent>
-          </MotionCard>
+            }
+          />
         </Grid>
       </Grid>
 
-      {/* Recent Parking Table */}
-      <MotionCard
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.7, duration: 0.5 }}
-      >
-        <CardContent>
-          <Typography variant="h3" sx={{ mb: 2 }}>
-            Xe gửi gần đây
-          </Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow
-                  sx={{ borderBottom: "2px solid rgba(255, 255, 255, 0.1)" }}
-                >
-                  <TableCell align="center">Biển số</TableCell>
-                  <TableCell align="center">Loại xe</TableCell>
-                  <TableCell align="center">Giờ vào</TableCell>
-                  <TableCell align="center">Trạng thái</TableCell>
-                  <TableCell align="center">Tiền</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {recentParking.map((row, index) => (
-                  <motion.tr
-                    key={row.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.8 + index * 0.1, duration: 0.3 }}
+      {/* Danh sách thiết bị hoạt động */}
+      {reportData.activeDevices && reportData.activeDevices.length > 0 && (
+        <MotionCard
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8, duration: 0.5 }}
+          sx={{ mt: 3, boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)" }}
+        >
+          <CardContent sx={{ p: 0 }}>
+            <Box sx={{ p: 3, pb: 0 }}>
+              <Typography variant="h5" sx={{ mb: 2, fontWeight: 600 }}>
+                Thiết bị đang hoạt động
+              </Typography>
+            </Box>
+            <TableContainer>
+              <Table sx={{ tableLayout: "fixed" }}>
+                <TableHead>
+                  <TableRow
+                    sx={{
+                      borderBottom: "2px solid",
+                      borderColor: "divider",
+                      bgcolor: "rgba(0, 188, 212, 0.05)",
+                    }}
                   >
-                    <TableCell align="center">{row.plate}</TableCell>
-                    <TableCell align="center">{row.type}</TableCell>
-                    <TableCell align="center">{row.checkIn}</TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={row.status}
-                        sx={{
-                          backgroundColor:
-                            row.status === "Đang gửi" ? "#dbeafd" : "#dbfde5",
-                          color:
-                            row.status === "Đang gửi" ? "#223ad2" : "#036333",
-                          width: "50%",
-                          fontWeight: 600,
-                        }}
-                      />
+                    <TableCell
+                      align="center"
+                      sx={{
+                        fontWeight: 700,
+                        color: "text.primary",
+                        width: "20%",
+                      }}
+                    >
+                      ID
                     </TableCell>
-                    <TableCell align="center">{row.amount}</TableCell>
-                  </motion.tr>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </MotionCard>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        fontWeight: 700,
+                        color: "text.primary",
+                        width: "50%",
+                      }}
+                    >
+                      Tên thiết bị
+                    </TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        fontWeight: 700,
+                        color: "text.primary",
+                        width: "30%",
+                      }}
+                    >
+                      Trạng thái
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.activeDevices
+                    .slice(
+                      devicePage * deviceRowsPerPage,
+                      devicePage * deviceRowsPerPage + deviceRowsPerPage
+                    )
+                    .map((device, index) => (
+                      <motion.tr
+                        key={device.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{
+                          delay: 0.9 + index * 0.05,
+                          duration: 0.3,
+                        }}
+                      >
+                        <TableCell
+                          align="center"
+                          sx={{
+                            fontWeight: 600,
+                            py: 2,
+                            width: "20%",
+                            minWidth: "80px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              color: "#1e88e5",
+                            }}
+                          >
+                            {device.id}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            fontWeight: 600,
+                            py: 2,
+                            width: "50%",
+                            minWidth: "150px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {device.name}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "30%",
+                            minWidth: "120px",
+                          }}
+                        >
+                          <motion.div whileHover={{ scale: 1.05 }}>
+                            <Chip
+                              label="Hoạt động"
+                              size="small"
+                              sx={{
+                                backgroundColor: "#dbfde5",
+                                color: "#036333",
+                                fontWeight: 600,
+                                borderRadius: "8px",
+                                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                                fontSize: "0.75rem",
+                              }}
+                            />
+                          </motion.div>
+                        </TableCell>
+                      </motion.tr>
+                    ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25]}
+              component="div"
+              count={reportData.activeDevices.length}
+              rowsPerPage={deviceRowsPerPage}
+              page={devicePage}
+              onPageChange={handleDevicePageChange}
+              onRowsPerPageChange={handleDeviceRowsPerPageChange}
+              sx={{
+                borderTop: "1px solid",
+                borderColor: "divider",
+                "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows":
+                  {
+                    margin: 0,
+                  },
+              }}
+            />
+            {reportData.activeDevices.length === 0 && (
+              <Box sx={{ textAlign: "center", py: 6 }}>
+                <Typography color="textSecondary" variant="h6">
+                  Không có thiết bị hoạt động
+                </Typography>
+              </Box>
+            )}
+          </CardContent>
+        </MotionCard>
+      )}
     </Box>
   );
 }

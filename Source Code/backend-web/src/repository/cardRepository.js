@@ -1,10 +1,6 @@
 import Card from "../models/Card.js";
 
-// Repository pattern for Card
-// Encapsulates all database queries related to cards
-
 class CardRepository {
-  // Get all cards
   async findAll() {
     try {
       const cards = await Card.findAll();
@@ -14,7 +10,6 @@ class CardRepository {
     }
   }
 
-  // Get card by ID
   async findById(id) {
     try {
       const card = await Card.findByPk(id);
@@ -24,7 +19,6 @@ class CardRepository {
     }
   }
 
-  // Get card by card number
   async findByCardNumber(cardNumber) {
     try {
       const card = await Card.findOne({ where: { cardNumber } });
@@ -34,7 +28,6 @@ class CardRepository {
     }
   }
 
-  // Create a new card
   async create(data) {
     try {
       const card = await Card.create(data);
@@ -44,7 +37,6 @@ class CardRepository {
     }
   }
 
-  // Update card by ID
   async update(id, data) {
     try {
       const card = await Card.findByPk(id);
@@ -58,7 +50,6 @@ class CardRepository {
     }
   }
 
-  // Delete card by ID
   async delete(id) {
     try {
       const card = await Card.findByPk(id);

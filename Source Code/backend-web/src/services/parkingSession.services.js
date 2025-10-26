@@ -1,14 +1,29 @@
 import parkingSessionRepository from "../repository/parkingSessionRepository.js";
 
-// Controller for parking session endpoints
-// Handles business logic and responds to HTTP requests
-
 export const getAllParkingSessions = async (req, res) => {
   try {
     const sessions = await parkingSessionRepository.findAll();
+    console.log(sessions);
+
+    const sessionsWithFullImageUrl = sessions.map((session) => {
+      const sessionData = session.dataValues || session;
+      const cardData = sessionData.cardInfo || null;
+
+      const isMonthlyCard = cardData && cardData.type === 1;
+
+      return {
+        ...sessionData,
+        imageUrl: sessionData.imageUrl
+          ? `${req.protocol}://${req.get("host")}${sessionData.imageUrl}`
+          : sessionData.imageUrl,
+        cardInfo: cardData,
+        isMonthlyCard: isMonthlyCard,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      data: sessions,
+      data: sessionsWithFullImageUrl,
       message: "Parking sessions retrieved successfully",
     });
   } catch (error) {
@@ -31,9 +46,23 @@ export const getParkingSessionById = async (req, res) => {
       });
     }
 
+    const sessionData = session.dataValues || session;
+    const cardData = sessionData.cardInfo || null;
+
+    const isMonthlyCard = cardData && cardData.type === 1;
+
+    const sessionWithFullImageUrl = {
+      ...sessionData,
+      imageUrl: sessionData.imageUrl
+        ? `${req.protocol}://${req.get("host")}${sessionData.imageUrl}`
+        : sessionData.imageUrl,
+      cardInfo: cardData,
+      isMonthlyCard: isMonthlyCard,
+    };
+
     res.status(200).json({
       success: true,
-      data: session,
+      data: sessionWithFullImageUrl,
     });
   } catch (error) {
     res.status(500).json({
@@ -98,9 +127,26 @@ export const getParkingSessionsByLicensePlate = async (req, res) => {
     const sessions = await parkingSessionRepository.findByLicensePlate(
       licensePlate
     );
+
+    const sessionsWithFullImageUrl = sessions.map((session) => {
+      const sessionData = session.dataValues || session;
+      const cardData = sessionData.cardInfo || null;
+
+      const isMonthlyCard = cardData && cardData.type === 1;
+
+      return {
+        ...sessionData,
+        imageUrl: sessionData.imageUrl
+          ? `${req.protocol}://${req.get("host")}${sessionData.imageUrl}`
+          : sessionData.imageUrl,
+        cardInfo: cardData,
+        isMonthlyCard: isMonthlyCard,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      data: sessions,
+      data: sessionsWithFullImageUrl,
       message: "Parking sessions retrieved by license plate",
     });
   } catch (error) {
@@ -115,9 +161,26 @@ export const getParkingSessionsByCardId = async (req, res) => {
   try {
     const { cardId } = req.params;
     const sessions = await parkingSessionRepository.findByCardId(cardId);
+
+    const sessionsWithFullImageUrl = sessions.map((session) => {
+      const sessionData = session.dataValues || session;
+      const cardData = sessionData.cardInfo || null;
+
+      const isMonthlyCard = cardData && cardData.type === 1;
+
+      return {
+        ...sessionData,
+        imageUrl: sessionData.imageUrl
+          ? `${req.protocol}://${req.get("host")}${sessionData.imageUrl}`
+          : sessionData.imageUrl,
+        cardInfo: cardData,
+        isMonthlyCard: isMonthlyCard,
+      };
+    });
+
     res.status(200).json({
       success: true,
-      data: sessions,
+      data: sessionsWithFullImageUrl,
       message: "Parking sessions retrieved by card ID",
     });
   } catch (error) {

@@ -1,14 +1,22 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
-import { ThemeProvider, createTheme, CssBaseline } from "@mui/material"
-import LoginPage from "./pages/LoginPage"
-import Dashboard from "./pages/Dashboard"
-import ParkingList from "./pages/ParkingList"
-import DeviceManagement from "./pages/DeviceManagement"
-import MonthlyTicket from "./pages/MonthlyTicket"
-import Layout from "./components/Layout"
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { ThemeProvider, createTheme, CssBaseline } from "@mui/material";
+import LoginPage from "./pages/LoginPage";
+import Dashboard from "./pages/Dashboard";
+import ParkingList from "./pages/ParkingList";
+import DeviceManagement from "./pages/DeviceManagement";
+import CardManagement from "./pages/CardManagement";
+import MonthlyTicket from "./pages/MonthlyTicket";
+import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import PublicRoute from "./components/PublicRoute";
+import { SnackbarProvider } from "./contexts/SnackbarContext";
 
 const theme = createTheme({
   palette: {
@@ -171,50 +179,53 @@ const theme = createTheme({
       },
     },
   },
-})
+});
+
+function AppContent() {
+  return (
+    <Router>
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            <PublicRoute>
+              <LoginPage />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="parking-list" element={<ParkingList />} />
+          <Route path="device-management" element={<DeviceManagement />} />
+          <Route path="card-management" element={<CardManagement />} />
+          <Route path="monthly-ticket" element={<MonthlyTicket />} />
+
+          <Route index element={<Navigate to="dashboard" replace />} />
+        </Route>
+
+        <Route path="*" element={<div>404 - Không tìm thấy</div>} />
+      </Routes>
+    </Router>
+  );
+}
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-
-  const handleLogin = () => {
-    setIsAuthenticated(true)
-  }
-
-  const handleLogout = () => {
-    setIsAuthenticated(false)
-  }
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <Routes>
-          <Route
-            path="/login"
-            element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage onLogin={handleLogin} />}
-          />
-          <Route
-            path="/*"
-            element={
-              isAuthenticated ? (
-                <Layout onLogout={handleLogout}>
-                  <Routes>
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/parking-list" element={<ParkingList />} />
-                    <Route path="/device-management" element={<DeviceManagement />} />
-                    <Route path="/monthly-ticket" element={<MonthlyTicket />} />
-                    <Route path="/" element={<Navigate to="/dashboard" />} />
-                  </Routes>
-                </Layout>
-              ) : (
-                <Navigate to="/login" />
-              )
-            }
-          />
-        </Routes>
-      </Router>
+      <SnackbarProvider>
+        <AppContent />
+      </SnackbarProvider>
     </ThemeProvider>
-  )
+  );
 }
 
-export default App
+export default App;

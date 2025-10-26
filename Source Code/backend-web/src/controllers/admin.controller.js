@@ -1,8 +1,5 @@
 import adminRepository from "../repository/adminRepository.js";
 
-// Controller for admin endpoints
-// Handles business logic and responds to HTTP requests
-
 export const getAllAdmins = async (req, res) => {
   try {
     const admins = await adminRepository.findAll();

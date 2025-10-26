@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import {
   Box,
@@ -29,88 +29,41 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  IconButton,
+  CircularProgress,
 } from "@mui/material";
 import { motion } from "framer-motion";
+import LoadingScreen from "../components/LoadingScreen";
 import AddIcon from "@mui/icons-material/Add";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import WarningIcon from "@mui/icons-material/Warning";
 import SearchIcon from "@mui/icons-material/Search";
-import { CiTrash } from "react-icons/ci";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import SortIcon from "@mui/icons-material/Sort";
+import { CiTrash, CiEdit } from "react-icons/ci";
+
+import {
+  getAllMonthlyUsers,
+  createMonthlyCard,
+  updateMonthlyUser,
+  deleteMonthlyUser,
+} from "../api/monthlyCard";
+import { getAvailableCards } from "../api/card";
+import { useSnackbar } from "../contexts/SnackbarContext";
 
 const MotionCard = motion(Card);
 const MotionBox = motion(Box);
 
 export default function MonthlyTicket() {
-  const [tickets, setTickets] = useState([
-    {
-      id: 1,
-      uid: "UID-MONTH-001",
-      name: "Nguyễn Văn A",
-      phone: "0912345678",
-      licensePlate: "29A-12345",
-      amount: "500,000 VND",
-      startDate: "2024-10-01",
-      endDate: "2024-10-31",
-      status: "Hoạt động",
-    },
-    {
-      id: 2,
-      uid: "UID-MONTH-002",
-      name: "Trần Thị B",
-      phone: "0987654321",
-      licensePlate: "30B-67890",
-      amount: "500,000 VND",
-      startDate: "2024-10-05",
-      endDate: "2024-11-04",
-      status: "Hoạt động",
-    },
-    {
-      id: 3,
-      uid: "UID-MONTH-003",
-      name: "Lê Văn C",
-      phone: "0901234567",
-      licensePlate: "31C-11111",
-      amount: "500,000 VND",
-      startDate: "2024-09-15",
-      endDate: "2024-10-14",
-      status: "Hết hạn",
-    },
-    {
-      id: 4,
-      uid: "UID-MONTH-004",
-      name: "Phạm Thị D",
-      phone: "0923456789",
-      licensePlate: "32D-22222",
-      amount: "500,000 VND",
-      startDate: "2024-10-01",
-      endDate: "2024-10-31",
-      status: "Hoạt động",
-    },
-    {
-      id: 5,
-      uid: "UID-MONTH-005",
-      name: "Hoàng Văn E",
-      phone: "0934567890",
-      licensePlate: "33E-33333",
-      amount: "500,000 VND",
-      startDate: "2024-10-05",
-      endDate: "2024-11-04",
-      status: "Hoạt động",
-    },
-    {
-      id: 6,
-      uid: "UID-MONTH-006",
-      name: "Võ Thị F",
-      phone: "0945678901",
-      licensePlate: "34F-44444",
-      amount: "500,000 VND",
-      startDate: "2024-09-15",
-      endDate: "2024-10-14",
-      status: "Hết hạn",
-    },
-  ]);
+  const { showSuccess, showError } = useSnackbar();
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const [openDialog, setOpenDialog] = useState(false);
+  const [dialogType, setDialogType] = useState("add");
+  const [selectedTicket, setSelectedTicket] = useState(null);
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState(null);
 
@@ -121,6 +74,42 @@ export default function MonthlyTicket() {
   const [searchPhone, setSearchPhone] = useState("");
   const [searchLicensePlate, setSearchLicensePlate] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [availableCards, setAvailableCards] = useState([]);
+
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await getAllMonthlyUsers();
+        if (response.data.success) {
+          setTickets(response.data.data || []);
+        } else {
+          setError("Không thể tải dữ liệu vé tháng");
+        }
+      } catch (err) {
+        console.error("Error fetching monthly tickets:", err);
+        setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTickets();
+  }, []);
+
+  const fetchAvailableCards = async () => {
+    try {
+      const response = await getAvailableCards();
+      console.log(response.data.data);
+      if (response.data.success) {
+        setAvailableCards(response.data.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching available cards:", err);
+    }
+  };
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -131,19 +120,33 @@ export default function MonthlyTicket() {
     setPage(0);
   };
 
-  const filteredData = tickets.filter((ticket) => {
+  const filteredData = tickets
+    .filter((ticket) => {
     const matchName = ticket.name
       .toLowerCase()
       .includes(searchName.toLowerCase());
-    const matchPhone = ticket.phone
+      const matchPhone = ticket.phoneNumber
       .toLowerCase()
       .includes(searchPhone.toLowerCase());
     const matchLicensePlate = ticket.licensePlate
       .toLowerCase()
       .includes(searchLicensePlate.toLowerCase());
+
+      const now = new Date();
+      const startDate = new Date(ticket.createdAt);
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + 1);
+      const isActive = endDate > now;
+      const ticketStatus = isActive ? "Hoạt động" : "Hết hạn";
+
     const matchStatus =
-      filterStatus === "all" || ticket.status === filterStatus;
+        filterStatus === "all" || ticketStatus === filterStatus;
     return matchName && matchPhone && matchLicensePlate && matchStatus;
+    })
+    .sort((a, b) => {
+      const dateA = new Date(a.createdAt);
+      const dateB = new Date(b.createdAt);
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
   });
 
   const paginatedData = filteredData.slice(
@@ -155,21 +158,41 @@ export default function MonthlyTicket() {
     control,
     handleSubmit,
     reset,
-    formState: { errors },
+    formState: { errors, isValid },
+    trigger,
   } = useForm({
+    mode: "onBlur",
     defaultValues: {
       name: "",
-      phone: "",
+      phoneNumber: "",
       licensePlate: "",
+      cardId: "",
     },
   });
 
-  const handleOpenDialog = () => {
+  const handleOpenDialog = async (type, ticket = null) => {
+    setDialogType(type);
+    setSelectedTicket(ticket);
+
+    if (type === "add") {
+      await fetchAvailableCards();
+    }
+
+    if (ticket) {
+      reset({
+        name: ticket.name,
+        phoneNumber: ticket.phoneNumber,
+        licensePlate: ticket.licensePlate,
+        cardId: ticket.cardId || "",
+      });
+    } else {
     reset({
       name: "",
-      phone: "",
+        phoneNumber: "",
       licensePlate: "",
+        cardId: "",
     });
+    }
     setOpenDialog(true);
   };
 
@@ -178,27 +201,48 @@ export default function MonthlyTicket() {
     reset();
   };
 
-  const handleSaveTicket = (formData) => {
-    const newTicket = {
-      id: Math.max(...tickets.map((t) => t.id), 0) + 1,
-      uid: `UID-MONTH-${String(
-        Math.max(
-          ...tickets.map((t) => Number.parseInt(t.uid.split("-")[2])),
-          0
-        ) + 1
-      ).padStart(3, "0")}`,
+  const handleSaveTicket = async (formData) => {
+    try {
+      setRefreshing(true);
+      setError(null);
+      let response;
+      if (dialogType === "add") {
+        response = await createMonthlyCard({
       name: formData.name,
-      phone: formData.phone,
+          phoneNumber: formData.phoneNumber,
       licensePlate: formData.licensePlate,
-      amount: "500,000 VND",
-      startDate: new Date().toISOString().split("T")[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0],
-      status: "Hoạt động",
-    };
-    setTickets([...tickets, newTicket]);
+          cardId: formData.cardId,
+          price: 500000,
+        });
+      } else if (dialogType === "edit") {
+        response = await updateMonthlyUser(
+          {
+            name: formData.name,
+            phoneNumber: formData.phoneNumber,
+            licensePlate: formData.licensePlate,
+          },
+          selectedTicket.id
+        );
+      }
+
+      if (response && response.data.success) {
+        const ticketsResponse = await getAllMonthlyUsers();
+        if (ticketsResponse.data.success) {
+          setTickets(ticketsResponse.data.data || []);
+        }
     handleCloseDialog();
+        showSuccess(
+          dialogType === "add"
+            ? "Đăng ký vé tháng thành công!"
+            : "Cập nhật vé tháng thành công!"
+        );
+      }
+    } catch (error) {
+      console.error("Error saving ticket:", error);
+      showError("Không thể lưu vé tháng. Vui lòng thử lại.");
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleDeleteTicket = (id) => {
@@ -206,11 +250,78 @@ export default function MonthlyTicket() {
     setDeleteConfirmDialog(true);
   };
 
-  const handleConfirmDelete = () => {
-    setTickets(tickets.filter((t) => t.id !== ticketToDelete));
+  const handleConfirmDelete = async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+      const response = await deleteMonthlyUser(ticketToDelete);
+      if (response.data.success) {
+        const ticketsResponse = await getAllMonthlyUsers();
+        if (ticketsResponse.data.success) {
+          setTickets(ticketsResponse.data.data || []);
+        }
     setDeleteConfirmDialog(false);
     setTicketToDelete(null);
+        showSuccess("Xóa vé tháng thành công!");
+      }
+    } catch (error) {
+      console.error("Error deleting ticket:", error);
+      showError("Không thể xóa vé tháng. Vui lòng thử lại.");
+    } finally {
+      setRefreshing(false);
+    }
   };
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+      const response = await getAllMonthlyUsers();
+      if (response.data.success) {
+        setTickets(response.data.data || []);
+        setSearchName("");
+        setSearchPhone("");
+        setSearchLicensePlate("");
+        setFilterStatus("all");
+        setPage(0);
+      } else {
+        setError("Không thể tải dữ liệu vé tháng");
+      }
+    } catch (err) {
+      console.error("Error refreshing tickets:", err);
+      setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleSortToggle = () => {
+    setSortOrder(sortOrder === "desc" ? "asc" : "desc");
+  };
+
+  if (loading) {
+    return <LoadingScreen message="Đang tải dữ liệu vé tháng..." />;
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+        <Button
+          variant="contained"
+          onClick={() => window.location.reload()}
+          sx={{
+            background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
+            borderRadius: "10px",
+          }}
+        >
+          Thử lại
+        </Button>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
@@ -243,7 +354,7 @@ export default function MonthlyTicket() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={handleOpenDialog}
+            onClick={() => handleOpenDialog("add")}
             sx={{
               background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
               borderRadius: "10px",
@@ -276,13 +387,25 @@ export default function MonthlyTicket() {
           },
           {
             label: "Hoạt động",
-            value: tickets.filter((t) => t.status === "Hoạt động").length,
+            value: tickets.filter((t) => {
+              const now = new Date();
+              const startDate = new Date(t.createdAt);
+              const endDate = new Date(startDate);
+              endDate.setMonth(endDate.getMonth() + 1);
+              return endDate > now;
+            }).length,
             color: "#4caf50",
             delay: 0.2,
           },
           {
             label: "Hết hạn",
-            value: tickets.filter((t) => t.status === "Hết hạn").length,
+            value: tickets.filter((t) => {
+              const now = new Date();
+              const startDate = new Date(t.createdAt);
+              const endDate = new Date(startDate);
+              endDate.setMonth(endDate.getMonth() + 1);
+              return endDate <= now;
+            }).length,
             color: "#f44336",
             delay: 0.3,
           },
@@ -445,7 +568,7 @@ export default function MonthlyTicket() {
                 />
               </motion.div>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={2}>
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300 }}
@@ -479,6 +602,70 @@ export default function MonthlyTicket() {
                 </FormControl>
               </motion.div>
             </Grid>
+            <Grid item xs={12} sm={6} md={1}>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Tooltip title="Sắp xếp theo thời gian" placement="top" arrow>
+                  <IconButton
+                    onClick={handleSortToggle}
+                    sx={{
+                      width: "56px",
+                      height: "56px",
+                      borderRadius: "10px",
+                      color: "#1e88e5",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      "&:hover": {
+                        transform: "scale(1.1)",
+                        bgcolor: "rgba(30, 136, 229, 0.1)",
+                      },
+                    }}
+                  >
+                    <SortIcon
+                      sx={{
+                        fontSize: "24px",
+                        transform:
+                          sortOrder === "desc"
+                            ? "rotate(180deg)"
+                            : "rotate(0deg)",
+                        transition: "transform 0.3s ease",
+                      }}
+                    />
+                  </IconButton>
+                </Tooltip>
+              </motion.div>
+            </Grid>
+            <Grid item xs={12} sm={6} md={1}>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Tooltip title="Làm mới dữ liệu" placement="top" arrow>
+                  <IconButton
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    sx={{
+                      width: "56px",
+                      height: "56px",
+                      borderRadius: "10px",
+                      color: "#1e88e5",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                      "&:hover": {
+                        transform: "rotate(180deg)",
+                        bgcolor: "rgba(30, 136, 229, 0.1)",
+                      },
+                      "&:disabled": {
+                        color: "#ccc",
+                        bgcolor: "#f5f5f5",
+                      },
+                    }}
+                  >
+                    <RefreshIcon sx={{ fontSize: "24px" }} />
+                  </IconButton>
+                </Tooltip>
+              </motion.div>
+            </Grid>
           </Grid>
         </CardContent>
       </MotionCard>
@@ -490,7 +677,30 @@ export default function MonthlyTicket() {
         transition={{ delay: 0.5, duration: 0.5 }}
         sx={{ boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)", overflowX: "auto" }}
       >
-        <CardContent sx={{ p: 0 }}>
+        <CardContent sx={{ p: 0, position: "relative" }}>
+          {refreshing && (
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(255, 255, 255, 0.8)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1,
+              }}
+            >
+              <Box sx={{ textAlign: "center" }}>
+                <CircularProgress size={40} sx={{ color: "#1e88e5", mb: 1 }} />
+                <Typography variant="body2" color="textSecondary">
+                  Đang làm mới dữ liệu...
+                </Typography>
+              </Box>
+            </Box>
+          )}
           <TableContainer>
             <Table>
               <TableHead>
@@ -501,12 +711,6 @@ export default function MonthlyTicket() {
                     bgcolor: "rgba(30, 136, 229, 0.05)",
                   }}
                 >
-                  <TableCell
-                    align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
-                  >
-                    UID
-                  </TableCell>
                   <TableCell
                     align="center"
                     sx={{ fontWeight: 700, color: "text.primary" }}
@@ -524,6 +728,12 @@ export default function MonthlyTicket() {
                     sx={{ fontWeight: 700, color: "text.primary" }}
                   >
                     Biển số xe
+                  </TableCell>
+                  <TableCell
+                    align="center"
+                    sx={{ fontWeight: 700, color: "text.primary" }}
+                  >
+                    ID thẻ
                   </TableCell>
                   <TableCell
                     align="center"
@@ -565,44 +775,65 @@ export default function MonthlyTicket() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.6 + index * 0.05, duration: 0.3 }}
                   >
-                    <TableCell align="center" sx={{ fontWeight: 600, py: 2 }}>
-                      {ticket.uid}
-                    </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
                       {ticket.name}
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
-                      {ticket.phone}
+                      {ticket.phoneNumber}
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2, fontWeight: 600 }}>
                       {ticket.licensePlate}
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2, fontWeight: 600 }}>
-                      {ticket.amount}
+                      {ticket.cardId}
+                    </TableCell>
+                    <TableCell align="center" sx={{ py: 2, fontWeight: 600 }}>
+                      500,000 VND
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
-                      {ticket.startDate}
+                      {new Date(ticket.createdAt).toLocaleDateString("vi-VN")}
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
-                      {ticket.endDate}
+                      {(() => {
+                        const startDate = new Date(ticket.createdAt);
+                        const endDate = new Date(startDate);
+                        endDate.setMonth(endDate.getMonth() + 1);
+                        return endDate.toLocaleDateString("vi-VN");
+                      })()}
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
                       <motion.div whileHover={{ scale: 1.05 }}>
                         <Chip
-                          label={ticket.status}
-                          color={
-                            ticket.status === "Hoạt động" ? "success" : "error"
-                          }
+                          label={(() => {
+                            const now = new Date();
+                            const startDate = new Date(ticket.createdAt);
+                            const endDate = new Date(startDate);
+                            endDate.setMonth(endDate.getMonth() + 1);
+                            return endDate > now ? "Hoạt động" : "Hết hạn";
+                          })()}
+                          color={(() => {
+                            const now = new Date();
+                            const startDate = new Date(ticket.createdAt);
+                            const endDate = new Date(startDate);
+                            endDate.setMonth(endDate.getMonth() + 1);
+                            return endDate > now ? "success" : "error";
+                          })()}
                           size="small"
                           sx={{
-                            backgroundColor:
-                              ticket.status === "Hoạt động"
-                                ? "#dbfde5"
-                                : "#dbfde5",
-                            color:
-                              ticket.status === "Hoạt động"
-                                ? "#036333"
-                                : "#036333",
+                            backgroundColor: (() => {
+                              const now = new Date();
+                              const startDate = new Date(ticket.createdAt);
+                              const endDate = new Date(startDate);
+                              endDate.setMonth(endDate.getMonth() + 1);
+                              return endDate > now ? "#dbfde5" : "#fddbdb";
+                            })(),
+                            color: (() => {
+                              const now = new Date();
+                              const startDate = new Date(ticket.createdAt);
+                              const endDate = new Date(startDate);
+                              endDate.setMonth(endDate.getMonth() + 1);
+                              return endDate > now ? "#036333" : "#ef4444";
+                            })(),
                             width: "100%",
                             fontWeight: 600,
                             borderRadius: "8px",
@@ -612,6 +843,41 @@ export default function MonthlyTicket() {
                       </motion.div>
                     </TableCell>
                     <TableCell align="center" sx={{ py: 2 }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          gap: 1,
+                          justifyContent: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <motion.div
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Tooltip title="Chỉnh sửa">
+                            <Button
+                              size="small"
+                              startIcon={<CiEdit />}
+                              onClick={() => handleOpenDialog("edit", ticket)}
+                              sx={{
+                                borderRadius: "8px",
+                                textTransform: "none",
+                                fontWeight: 600,
+                                color: "#ff9800",
+                                fontSize: "0.75rem",
+                                px: 1.5,
+                                py: 0.5,
+                                transition: "all 0.3s",
+                                "&:hover": {
+                                  bgcolor: "rgba(255, 152, 0, 0.1)",
+                                },
+                              }}
+                            >
+                              Sửa
+                            </Button>
+                          </Tooltip>
+                        </motion.div>
                       <motion.div
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -626,6 +892,9 @@ export default function MonthlyTicket() {
                               borderRadius: "8px",
                               textTransform: "none",
                               fontWeight: 600,
+                                fontSize: "0.75rem",
+                                px: 1.5,
+                                py: 0.5,
                               transition: "all 0.3s",
                               "&:hover": {
                                 bgcolor: "rgba(244, 67, 54, 0.1)",
@@ -636,6 +905,7 @@ export default function MonthlyTicket() {
                           </Button>
                         </Tooltip>
                       </motion.div>
+                      </Box>
                     </TableCell>
                   </motion.tr>
                 ))}
@@ -677,7 +947,7 @@ export default function MonthlyTicket() {
         fullWidth
       >
         <DialogTitle sx={{ fontWeight: 700, fontSize: "1.2rem" }}>
-          Đăng ký vé tháng mới
+          {dialogType === "add" ? "Đăng ký vé tháng mới" : "Chỉnh sửa vé tháng"}
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <form onSubmit={handleSubmit(handleSaveTicket)}>
@@ -697,6 +967,11 @@ export default function MonthlyTicket() {
                       label="Tên khách hàng"
                       error={!!error}
                       helperText={error?.message}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        trigger("name");
+                      }}
+                      onBlur={() => trigger("name")}
                       sx={{
                         marginTop: "10px",
                         "& .MuiOutlinedInput-root": {
@@ -715,7 +990,111 @@ export default function MonthlyTicket() {
                 )}
               />
               <Controller
-                name="phone"
+                name="cardId"
+                control={control}
+                rules={{ required: "ID thẻ không được để trống" }}
+                render={({ field, fieldState: { error } }) => (
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <FormControl fullWidth error={!!error}>
+                      <InputLabel id="card-select-label">ID thẻ</InputLabel>
+                      <Select
+                        labelId="card-select-label"
+                        id="card-select"
+                        {...field}
+                        label="ID thẻ"
+                        disabled={dialogType === "edit"}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          trigger("cardId");
+                        }}
+                        onBlur={() => trigger("cardId")}
+                        sx={{
+                          borderRadius: "10px",
+                          transition: "all 0.3s",
+                          "& .MuiOutlinedInput-root": {
+                            transition: "all 0.3s",
+                            "&:hover": {
+                              boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
+                            },
+                            "&.Mui-focused": {
+                              boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
+                            },
+                          },
+                          "& .MuiInputBase-input.Mui-disabled": {
+                            WebkitTextFillColor: "rgba(0, 0, 0, 0.6)",
+                          },
+                        }}
+                      >
+                        {dialogType === "add" ? (
+                          availableCards.length > 0 ? (
+                            availableCards.map((card) => (
+                              <MenuItem key={card.id} value={card.id}>
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1,
+                                  }}
+                                >
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontWeight: 600 }}
+                                  >
+                                    ID: {card.id}
+                                  </Typography>
+                                  <Typography
+                                    variant="caption"
+                                    color="textSecondary"
+                                  >
+                                    - {card.cardNumber}
+                                  </Typography>
+                                </Box>
+                              </MenuItem>
+                            ))
+                          ) : (
+                            <MenuItem disabled>
+                              <Typography color="textSecondary">
+                                Không có thẻ rảnh
+                              </Typography>
+                            </MenuItem>
+                          )
+                        ) : (
+                          <MenuItem value={field.value}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              <Typography
+                                variant="body2"
+                                sx={{ fontWeight: 600 }}
+                              >
+                                ID: {field.value}
+                              </Typography>
+                            </Box>
+                          </MenuItem>
+                        )}
+                      </Select>
+                      {error && (
+                        <Typography
+                          variant="caption"
+                          color="error"
+                          sx={{ mt: 0.5, ml: 1.5 }}
+                        >
+                          {error.message}
+                        </Typography>
+                      )}
+                    </FormControl>
+                  </motion.div>
+                )}
+              />
+              <Controller
+                name="phoneNumber"
                 control={control}
                 rules={{
                   required: "Số điện thoại không được để trống",
@@ -736,6 +1115,11 @@ export default function MonthlyTicket() {
                       label="Số điện thoại"
                       error={!!error}
                       helperText={error?.message}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        trigger("phoneNumber");
+                      }}
+                      onBlur={() => trigger("phoneNumber")}
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: "10px",
@@ -767,6 +1151,11 @@ export default function MonthlyTicket() {
                       label="Biển số xe"
                       error={!!error}
                       helperText={error?.message}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        trigger("licensePlate");
+                      }}
+                      onBlur={() => trigger("licensePlate")}
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: "10px",
@@ -795,7 +1184,31 @@ export default function MonthlyTicket() {
                   <strong>Giá tiền:</strong> 500,000 VND
                 </Typography>
                 <Typography variant="body2">
+                  {dialogType === "add" ? (
+                    <>
                   <strong>Thời hạn:</strong> 30 ngày
+                    </>
+                  ) : (
+                    <>
+                      <strong>Số ngày còn lại:</strong>{" "}
+                      {(() => {
+                        if (selectedTicket) {
+                          const now = new Date();
+                          const startDate = new Date(selectedTicket.createdAt);
+                          const endDate = new Date(startDate);
+                          endDate.setMonth(endDate.getMonth() + 1);
+                          const diffTime = endDate - now;
+                          const diffDays = Math.ceil(
+                            diffTime / (1000 * 60 * 60 * 24)
+                          );
+                          return diffDays > 0
+                            ? `${diffDays} ngày`
+                            : "Đã hết hạn";
+                        }
+                        return "30 ngày";
+                      })()}
+                    </>
+                  )}
                 </Typography>
               </Box>
             </Box>
@@ -809,13 +1222,20 @@ export default function MonthlyTicket() {
             <Button
               onClick={handleSubmit(handleSaveTicket)}
               variant="contained"
+              disabled={!isValid}
               sx={{
-                background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
+                background: isValid
+                  ? "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)"
+                  : "rgba(0, 0, 0, 0.12)",
                 textTransform: "none",
                 fontWeight: 600,
+                "&:disabled": {
+                  color: "rgba(0, 0, 0, 0.26)",
+                  backgroundColor: "rgba(0, 0, 0, 0.12)",
+                },
               }}
             >
-              Đăng ký
+              {dialogType === "add" ? "Đăng ký" : "Cập nhật"}
             </Button>
           </motion.div>
         </DialogActions>
@@ -851,7 +1271,7 @@ export default function MonthlyTicket() {
             <Typography color="textSecondary">
               Khách hàng:{" "}
               <strong>
-                {tickets.find((d) => d.id === ticketToDelete)?.name}
+                {tickets.find((t) => t.id === ticketToDelete)?.name}
               </strong>
             </Typography>
           </DialogContent>

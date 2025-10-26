@@ -1,3 +1,20 @@
+# Mobile App - Smart Parking System
+
+## Tổng quan
+
+Ứng dụng mobile để tra cứu thông tin xe đỗ trong hệ thống bãi đỗ xe thông minh.
+
+## Tính năng chính
+
+- **Tra cứu xe theo biển số**: Nhập biển số xe để xem thông tin chi tiết
+- **Hiển thị hình ảnh**: Xem hình ảnh biển số xe với loading states và error handling
+- **Thông tin chi tiết**: 
+  - Thông tin cơ bản: Biển số, loại thẻ, thời gian vào, thời gian đã gửi (phút/giây)
+  - Số tiền phải trả (đối với vé thường)
+  - Thông tin vé tháng (nếu có): Tên chủ xe, ngày bắt đầu/kết thúc, số ngày còn lại
+- **Giao diện đẹp**: Card-based design với animations mượt mà
+- **Error handling**: Xử lý lỗi và hiển thị thông báo phù hợp
+
 ## 🛠 Prerequisites
 
 Ensure you have the following software installed on your development machine:

@@ -1,10 +1,6 @@
 import Admin from "../models/Admin.js";
 
-// Repository pattern for Admin
-// Encapsulates all database queries related to admins
-
 class AdminRepository {
-  // Get all admins
   async findAll() {
     try {
       const admins = await Admin.findAll();
@@ -14,7 +10,6 @@ class AdminRepository {
     }
   }
 
-  // Get admin by ID
   async findById(id) {
     try {
       const admin = await Admin.findByPk(id);
@@ -24,7 +19,6 @@ class AdminRepository {
     }
   }
 
-  // Get admin by email
   async findByEmail(email) {
     try {
       const admin = await Admin.findOne({ where: { email } });
@@ -34,7 +28,6 @@ class AdminRepository {
     }
   }
 
-  // ✅ Get admin by username (dùng cho login)
   async findByUsername(username) {
     try {
       const admin = await Admin.findOne({ where: { username } });
@@ -44,7 +37,6 @@ class AdminRepository {
     }
   }
 
-  // Create a new admin
   async create(data) {
     try {
       const admin = await Admin.create(data);
@@ -54,7 +46,6 @@ class AdminRepository {
     }
   }
 
-  // Update admin by ID
   async update(id, data) {
     try {
       const admin = await Admin.findByPk(id);
@@ -68,7 +59,6 @@ class AdminRepository {
     }
   }
 
-  // Delete admin by ID
   async delete(id) {
     try {
       const admin = await Admin.findByPk(id);

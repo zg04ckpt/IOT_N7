@@ -1,10 +1,6 @@
 import Device from "../models/Device.js";
 
-// Repository pattern for Device
-// Encapsulates all database queries related to devices
-
 class DeviceRepository {
-  // Get all devices
   async findAll() {
     try {
       const devices = await Device.findAll();
@@ -14,7 +10,6 @@ class DeviceRepository {
     }
   }
 
-  // Get device by ID
   async findById(id) {
     try {
       const device = await Device.findByPk(id);
@@ -24,7 +19,6 @@ class DeviceRepository {
     }
   }
 
-  // Get devices by location
   async findByLocation(location) {
     try {
       const devices = await Device.findAll({ where: { location } });
@@ -34,7 +28,6 @@ class DeviceRepository {
     }
   }
 
-  // Create a new device
   async create(data) {
     try {
       const device = await Device.create(data);
@@ -44,7 +37,6 @@ class DeviceRepository {
     }
   }
 
-  // Update device by ID
   async update(id, data) {
     try {
       const device = await Device.findByPk(id);
@@ -58,7 +50,6 @@ class DeviceRepository {
     }
   }
 
-  // Delete device by ID
   async delete(id) {
     try {
       const device = await Device.findByPk(id);

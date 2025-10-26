@@ -1,31 +1,42 @@
 import ParkingSession from "../models/ParkingSession.js";
+import Card from "../models/Card.js";
 import { Op } from "sequelize";
 
-// Repository pattern for ParkingSession
-// Encapsulates all database queries related to parking sessions
-
 class ParkingSessionRepository {
-  // Get all parking sessions
   async findAll() {
     try {
-      const sessions = await ParkingSession.findAll();
+      const sessions = await ParkingSession.findAll({
+        include: [
+          {
+            model: Card,
+            as: "cardInfo",
+            attributes: ["id", "type", "cardNumber", "price", "isActive"],
+          },
+        ],
+      });
       return sessions;
     } catch (error) {
       throw new Error(`Error fetching parking sessions: ${error.message}`);
     }
   }
 
-  // Get parking session by ID
   async findById(id) {
     try {
-      const session = await ParkingSession.findByPk(id);
+      const session = await ParkingSession.findByPk(id, {
+        include: [
+          {
+            model: Card,
+            as: "cardInfo",
+            attributes: ["id", "type", "cardNumber", "price", "isActive"],
+          },
+        ],
+      });
       return session;
     } catch (error) {
       throw new Error(`Error fetching parking session by ID: ${error.message}`);
     }
   }
 
-  // Create a new parking session
   async create(data) {
     try {
       const session = await ParkingSession.create(data);
@@ -35,7 +46,6 @@ class ParkingSessionRepository {
     }
   }
 
-  // Update parking session by ID
   async update(id, data) {
     try {
       const session = await ParkingSession.findByPk(id);
@@ -49,7 +59,6 @@ class ParkingSessionRepository {
     }
   }
 
-  // Delete parking session by ID
   async delete(id) {
     try {
       const session = await ParkingSession.findByPk(id);
@@ -63,11 +72,17 @@ class ParkingSessionRepository {
     }
   }
 
-  // Find parking sessions by license plate
   async findByLicensePlate(licensePlate) {
     try {
       const sessions = await ParkingSession.findAll({
         where: { licensePlate },
+        include: [
+          {
+            model: Card,
+            as: "cardInfo",
+            attributes: ["id", "type", "cardNumber", "price", "isActive"],
+          },
+        ],
       });
       return sessions;
     } catch (error) {
@@ -77,11 +92,17 @@ class ParkingSessionRepository {
     }
   }
 
-  // Find parking sessions by card ID
   async findByCardId(cardId) {
     try {
       const sessions = await ParkingSession.findAll({
         where: { cardId },
+        include: [
+          {
+            model: Card,
+            as: "cardInfo",
+            attributes: ["id", "type", "cardNumber", "price", "isActive"],
+          },
+        ],
       });
       return sessions;
     } catch (error) {
@@ -91,13 +112,11 @@ class ParkingSessionRepository {
     }
   }
 
-  //  Lấy danh sách xe đang đỗ (chưa check-out: timeEnd = null)
-  // Sắp xếp theo thời gian gần nhất (DESC - mới nhất trước)
   async getListSessionCurrent() {
     try {
       const sessions = await ParkingSession.findAll({
-        where: { timeEnd: null }, // Chỉ lấy session chưa check-out
-        order: [['timeStart', 'DESC']], // Sắp xếp theo thời gian bắt đầu (mới nhất trước)
+        where: { timeEnd: null },
+        order: [["timeStart", "DESC"]],
       });
       return sessions;
     } catch (error) {
@@ -107,22 +126,40 @@ class ParkingSessionRepository {
     }
   }
 
-  // Lấy danh sách xe đã gửi (đã check-out: timeEnd != null)
-  // Sắp xếp theo thời gian check-out gần nhất (DESC - mới nhất trước)
   async getListSessionHistory() {
     try {
       const sessions = await ParkingSession.findAll({
-        where: { 
+        where: {
           timeEnd: {
-            [Op.not]: null // timeEnd != null
-          }
+            [Op.not]: null,
+          },
         },
-        order: [['timeEnd', 'DESC']], // Sắp xếp theo thời gian check-out (mới nhất trước)
+        order: [["timeEnd", "DESC"]],
       });
       return sessions;
     } catch (error) {
       throw new Error(
         `Error fetching parking session history: ${error.message}`
+      );
+    }
+  }
+
+  async findActiveSessions() {
+    try {
+      const sessions = await ParkingSession.findAll({
+        where: { timeEnd: null },
+        include: [
+          {
+            model: Card,
+            as: "cardInfo",
+            attributes: ["id", "type", "cardNumber", "price", "isActive"],
+          },
+        ],
+      });
+      return sessions;
+    } catch (error) {
+      throw new Error(
+        `Error fetching active parking sessions: ${error.message}`
       );
     }
   }

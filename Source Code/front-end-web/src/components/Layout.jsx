@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Outlet } from "react-router-dom";
 import {
   Box,
   Drawer,
@@ -19,7 +19,9 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import ListAltIcon from "@mui/icons-material/ListAlt";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ReceiptIcon from "@mui/icons-material/Receipt";
+import CreditCardIcon from "@mui/icons-material/CreditCard";
 import LogoutIcon from "@mui/icons-material/Logout";
+import { useAuth } from "../contexts/authContext";
 
 const DRAWER_WIDTH = 280;
 
@@ -27,22 +29,27 @@ const menuItems = [
   { label: "Dashboard", path: "/dashboard", icon: DashboardIcon },
   { label: "Danh sách xe gửi", path: "/parking-list", icon: ListAltIcon },
   { label: "Quản lý thiết bị", path: "/device-management", icon: SettingsIcon },
+  { label: "Quản lý vé xe", path: "/card-management", icon: CreditCardIcon },
   { label: "Đăng ký vé tháng", path: "/monthly-ticket", icon: ReceiptIcon },
   { label: "Đăng xuất", path: "/logout", icon: LogoutIcon },
 ];
 
-export default function Layout({ children, onLogout }) {
+export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-
+  const { logout } = useAuth();
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleLogout = () => {
-    onLogout();
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("Lỗi khi đăng xuất:", error);
+    }
   };
 
   const drawer = (
@@ -76,14 +83,18 @@ export default function Layout({ children, onLogout }) {
                 width: 48,
                 height: 48,
                 borderRadius: "12px",
-                background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 4px 12px rgba(30, 136, 229, 0.3)",
               }}
             >
-              <DirectionsCarIcon sx={{ color: "white", fontSize: 28 }} />
+              <img
+                src="/android-chrome-192x192.png"
+                alt="Smart Parking"
+                width={48}
+                height={48}
+                style={{ borderRadius: "8px" }}
+              />
             </Box>
           </motion.div>
           <Box>
@@ -91,7 +102,7 @@ export default function Layout({ children, onLogout }) {
               variant="h6"
               sx={{ fontWeight: 700, color: "text.primary" }}
             >
-              SmartPark
+              Smart Parking
             </Typography>
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
               Management
@@ -238,7 +249,7 @@ export default function Layout({ children, onLogout }) {
           overflow: "auto",
         }}
       >
-        {children}
+        <Outlet />
       </Box>
     </Box>
   );

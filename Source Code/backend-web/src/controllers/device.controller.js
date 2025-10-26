@@ -1,8 +1,5 @@
 import deviceRepository from "../repository/deviceRepository.js";
 
-// Controller for device endpoints
-// Handles business logic and responds to HTTP requests
-
 export const getAllDevices = async (req, res) => {
   try {
     const devices = await deviceRepository.findAll();

@@ -18,6 +18,7 @@ import monthlyCardRoutes from "./routes/monthlyCard.routes.js";
 import viewReportRoutes from "./routes/viewReports.routes.js";
 import searchRoutes from "./routes/searches.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import "./models/associations.js";
 
 dotenv.config();
 
@@ -28,20 +29,26 @@ const PORT = process.env.PORT || 4000;
 
 app.use(
   cors({
-    origin: "*",
-    credentials: true, // Cho phép gửi cookie/session
+    origin: [
+      "http://localhost:5173",
+      "http://10.0.2.2:4000",
+      "http://localhost:4000",
+      "http://192.168.1.100:4000",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   })
 );
 
-// ✅ Serve static files từ thư mục data
-app.use('/data', express.static('data'));
+app.use("/data", express.static("src/data"));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 const generalLimiiter = rateLimit({
   windowMs: 15 * 60 * 1000, // Thời gian được lấy làm mốc để request
-  max: 100, // Giới hạn mỗi IP là 100 request
+  max: 1000, // Giới hạn mỗi IP là 100 request
   standardHeaders: true, // gửi các header theo tiêu chuẩn IETF Draft về giới hạn tốc độ
   legacyHeaders: false, // ngăn ko cho gửi các header giới hạn tốc độ cũ, đã từng là tiêu chuẩn không chính thức
 });
@@ -80,21 +87,20 @@ app.use(
 
 // ErrorHandler Middleware
 
-// Mount routers (keep server.js minimal)
-//  Auth routes (login/logout)
-app.use('/api/auth', authRoutes);
+app.use("/api/auth", authRoutes);
 
-app.use('/', userRoutes);
-app.use('/api/check-in', checkInRoutes); //  Check-in route
-app.use('/api/manage-sessions', parkingSessionRoutes); // manage sessions check-in
-app.use('/api/admins', adminRoutes);
-app.use('/api/manage-cards', cardRoutes);
-app.use('/api/manage-devices', deviceRoutes);
-app.use('/api/user-infos', userInfoRoutes);
-app.use('/api/checkout', checkOutRoutes);
-app.use('/api/monthly-cards', monthlyCardRoutes);
-app.use('/api/view-reports', viewReportRoutes);
-app.use('/api', searchRoutes); 
+app.use("/", userRoutes);
+app.use("/api/check-in", checkInRoutes);
+app.use("/api/manage-sessions", parkingSessionRoutes);
+app.use("/api/admins", adminRoutes);
+app.use("/api/manage-cards", cardRoutes);
+app.use("/api/manage-devices", deviceRoutes);
+app.use("/api/user-infos", userInfoRoutes);
+app.use("/api/checkout", checkOutRoutes);
+app.use("/api/monthly-cards", monthlyCardRoutes);
+app.use("/api/view-reports", viewReportRoutes);
+app.use("/api", searchRoutes);
+
 // Xử lý route không tồn tại
 app.use(notFound);
 

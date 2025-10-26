@@ -1,16 +1,5 @@
 import deviceRepository from "../repository/deviceRepository.js";
 
-/**
- * QUẢN LÝ THIẾT BỊ (DEVICE)
- * Cung cấp các handler để thêm, sửa, xóa, lấy danh sách thiết bị
- */
-
-// ========== GET ==========
-
-/**
- * Lấy tất cả các thiết bị
- * GET /api/manage-devices/list
- */
 export const getAllDevices = async (req, res) => {
   try {
     const devices = await deviceRepository.findAll();
@@ -29,10 +18,6 @@ export const getAllDevices = async (req, res) => {
   }
 };
 
-/**
- * Lấy chi tiết một thiết bị theo ID
- * GET /api/manage-devices/:id
- */
 export const getDeviceById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -67,10 +52,6 @@ export const getDeviceById = async (req, res) => {
   }
 };
 
-/**
- * Lấy các thiết bị theo vị trí (location)
- * GET /api/manage-devices/location/:location
- */
 export const getDevicesByLocation = async (req, res) => {
   try {
     const { location } = req.params;
@@ -106,18 +87,10 @@ export const getDevicesByLocation = async (req, res) => {
   }
 };
 
-// ========== POST (CREATE) ==========
-
-/**
- * Thêm mới một thiết bị
- * POST /api/manage-devices
- * Body: { name, location, type, ipAddress, status }
- */
 export const createDevice = async (req, res) => {
   try {
     const { name, location, type, ipAddress, status } = req.body;
 
-    // Validation
     if (!name || !location) {
       return res.status(400).json({
         success: false,
@@ -125,16 +98,14 @@ export const createDevice = async (req, res) => {
       });
     }
 
-    // Chuẩn bị dữ liệu
     const deviceData = {
       name: name.trim(),
       location: location.trim(),
-      type: type || "camera", // Mặc định loại = camera
+      type: type || "camera",
       ipAddress: ipAddress || null,
-      status: status || "active", // Mặc định trạng thái = active
+      status: status || "active",
     };
 
-    // Tạo thiết bị mới
     const newDevice = await deviceRepository.create(deviceData);
 
     res.status(201).json({
@@ -151,13 +122,6 @@ export const createDevice = async (req, res) => {
   }
 };
 
-// ========== PUT (UPDATE) ==========
-
-/**
- * Cập nhật thông tin thiết bị
- * PUT /api/manage-devices/:id
- * Body: { name, location, type, ipAddress, status }
- */
 export const updateDevice = async (req, res) => {
   try {
     const { id } = req.params;
@@ -170,7 +134,6 @@ export const updateDevice = async (req, res) => {
       });
     }
 
-    // Kiểm tra thiết bị tồn tại
     const existingDevice = await deviceRepository.findById(id);
     if (!existingDevice) {
       return res.status(404).json({
@@ -179,7 +142,6 @@ export const updateDevice = async (req, res) => {
       });
     }
 
-    // Chuẩn bị dữ liệu cập nhật (chỉ cập nhật các trường được gửi)
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
     if (location !== undefined) updateData.location = location.trim();
@@ -187,7 +149,6 @@ export const updateDevice = async (req, res) => {
     if (ipAddress !== undefined) updateData.ipAddress = ipAddress;
     if (status !== undefined) updateData.status = status;
 
-    // Cập nhật
     const updatedDevice = await deviceRepository.update(id, updateData);
 
     res.status(200).json({
@@ -204,11 +165,6 @@ export const updateDevice = async (req, res) => {
   }
 };
 
-/**
- * Thay đổi trạng thái thiết bị (active/inactive)
- * PATCH /api/manage-devices/:id/status
- * Body: { status }
- */
 export const updateDeviceStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -228,7 +184,6 @@ export const updateDeviceStatus = async (req, res) => {
       });
     }
 
-    // Kiểm tra thiết bị tồn tại
     const existingDevice = await deviceRepository.findById(id);
     if (!existingDevice) {
       return res.status(404).json({
@@ -237,7 +192,6 @@ export const updateDeviceStatus = async (req, res) => {
       });
     }
 
-    // Cập nhật trạng thái
     const updatedDevice = await deviceRepository.update(id, { status });
 
     res.status(200).json({
@@ -254,12 +208,6 @@ export const updateDeviceStatus = async (req, res) => {
   }
 };
 
-// ========== DELETE ==========
-
-/**
- * Xóa một thiết bị
- * DELETE /api/manage-devices/:id
- */
 export const deleteDevice = async (req, res) => {
   try {
     const { id } = req.params;
@@ -271,7 +219,6 @@ export const deleteDevice = async (req, res) => {
       });
     }
 
-    // Kiểm tra thiết bị tồn tại
     const existingDevice = await deviceRepository.findById(id);
     if (!existingDevice) {
       return res.status(404).json({
@@ -280,7 +227,6 @@ export const deleteDevice = async (req, res) => {
       });
     }
 
-    // Xóa thiết bị
     await deviceRepository.delete(id);
 
     res.status(200).json({
