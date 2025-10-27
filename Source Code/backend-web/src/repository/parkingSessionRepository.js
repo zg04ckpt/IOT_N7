@@ -163,6 +163,31 @@ class ParkingSessionRepository {
       );
     }
   }
+
+  //  Tìm xe theo licensePlate, cardId và timeEnd = null
+  async findByLicensePlateAndCardIdAndActive(licensePlate, cardId) {
+    try {
+      const session = await ParkingSession.findOne({
+        where: {
+          licensePlate: licensePlate,
+          cardId: parseInt(cardId, 10),
+          timeEnd: null, 
+        },
+        include: [
+          {
+            model: Card,
+            as: "cardInfo",
+            attributes: ["id", "type", "cardNumber", "price", "isActive"],
+          },
+        ],
+      });
+      return session;
+    } catch (error) {
+      throw new Error(
+        `Error fetching parking session by licensePlate and cardId: ${error.message}`
+      );
+    }
+  }
 }
 
 export default new ParkingSessionRepository();

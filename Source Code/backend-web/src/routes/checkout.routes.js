@@ -3,6 +3,6 @@ import checkOutService from "../services/checkOut.services.js";
 
 const router = express.Router();
 
-router.post("/:id", checkOutService.checkOutParkingSession);
+router.post("/", checkOutService.checkOutParkingSession);
 
 export default router;
