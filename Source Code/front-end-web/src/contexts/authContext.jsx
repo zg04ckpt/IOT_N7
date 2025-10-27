@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import { getCurrentUser, logoutUser } from "../api/auth";
 
 const AuthContext = createContext();
@@ -9,9 +15,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const hasCheckedAuth = useRef(false);
 
   useEffect(() => {
     const checkLoginStatus = async () => {
+      if (hasCheckedAuth.current) {
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
         const res = await getCurrentUser();
@@ -28,6 +40,7 @@ export const AuthProvider = ({ children }) => {
         console.error("Lỗi khi kiểm tra trạng thái đăng nhập:", error);
       } finally {
         setIsLoading(false);
+        hasCheckedAuth.current = true;
       }
     };
 
@@ -37,12 +50,12 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await logoutUser();
-      setUser(null);
-      setIsAuthenticated(false);
     } catch (error) {
       console.error("Lỗi khi logout:", error);
+    } finally {
       setUser(null);
       setIsAuthenticated(false);
+      hasCheckedAuth.current = false;
     }
   };
 

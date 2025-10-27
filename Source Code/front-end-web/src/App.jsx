@@ -17,6 +17,7 @@ import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import { SnackbarProvider } from "./contexts/SnackbarContext";
+import { AuthProvider } from "./contexts/authContext";
 
 const theme = createTheme({
   palette: {
@@ -221,9 +222,11 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <SnackbarProvider>
-        <AppContent />
-      </SnackbarProvider>
+      <AuthProvider>
+        <SnackbarProvider>
+          <AppContent />
+        </SnackbarProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

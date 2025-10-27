@@ -21,9 +21,11 @@ axiosInstance.interceptors.response.use(
       const { status } = error.response;
       if (status === 401) {
         console.error(
-          "401 Unauthorized: Session đã hết hạn hoặc chưa đăng nhập. Chuyển hướng..."
+          "401 Unauthorized: Session đã hết hạn hoặc chưa đăng nhập."
         );
-        window.location.href = "/login";
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
       }
       if (status === 403) {
         console.error(
