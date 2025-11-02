@@ -1,17 +1,15 @@
+
 import parkingSessionRepository from "../repository/parkingSessionRepository.js";
 
 export const checkOutParkingSession = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { licensePlate, cardId } = req.body;
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "Thiếu thông tin ID của parking session",
-      });
-    }
-
-    const currentSession = await parkingSessionRepository.findById(id);
+    const currentSession = await parkingSessionRepository.findByLicensePlateAndCardIdAndActive(
+      licensePlate,
+      parseInt(cardId, 10)
+    );
+   
     if (!currentSession) {
       return res.status(404).json({
         success: false,
@@ -53,11 +51,11 @@ export const checkOutParkingSession = async (req, res) => {
     console.log(`Update data:`, updateData);
 
     const updatedSession = await parkingSessionRepository.update(
-      id,
+      currentSession.id,
       updateData
     );
 
-    console.log(`Session ${id} đã được checkout:`, updatedSession);
+    console.log(`Session ${currentSession.id} đã được checkout:`, updatedSession);
 
     res.status(200).json({
       success: true,

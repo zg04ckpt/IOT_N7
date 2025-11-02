@@ -5,7 +5,11 @@ export const getAllAdmins = async (req, res) => {
     const admins = await adminRepository.findAll();
     res.status(200).json({
       success: true,
-      data: admins,
+      data: admins.map((admin) => ({
+        username : admin.username,
+        email : admin.email,
+        phoneNumber : admin.phoneNumber,
+      })),
       message: "Admins retrieved successfully",
     });
   } catch (error) {
@@ -30,7 +34,9 @@ export const getAdminById = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: admin,
+      username : admin.username,
+      email : admin.email,
+      phoneNumber : admin.phoneNumber,
     });
   } catch (error) {
     res.status(500).json({
