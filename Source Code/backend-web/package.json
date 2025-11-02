@@ -1,0 +1,34 @@
+{
+  "name": "backend-web",
+  "version": "1.0.0",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "migrate": "npx sequelize-cli db:migrate --config sequelize.config.cjs --migrations-path src/migrations --seeders-path src/seeders",
+    "migrate:undo": "npx sequelize-cli db:migrate:undo --config sequelize.config.cjs --migrations-path src/migrations --seeders-path src/seeders",
+    "migration:generate": "npx sequelize-cli migration:generate --config sequelize.config.cjs --migrations-path src/migrations --seeders-path src/seeders --name"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-mysql-session": "^3.0.3",
+    "express-rate-limit": "^8.1.0",
+    "express-session": "^1.18.2",
+    "multer": "^2.0.2",
+    "mysql2": "^3.15.2",
+    "sequelize": "^6.37.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10",
+    "sequelize-cli": "^6.6.3"
+  }
+}
