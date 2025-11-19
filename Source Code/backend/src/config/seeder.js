@@ -11,8 +11,8 @@ async function seed() {
     console.log(`Start seeding database ...`);
 	try {
 		const users = [
-			{ email: process.env.IOT_ADMIN_EMAIL, role: Role.ADMIN, password: process.env.IOT_ADMIN_PASS },
-			{ email: process.env.GUARD_EMAIL, role: Role.GUARD, password: process.env.GUARD_PASS }
+			{ email: process.env.IOT_ADMIN_EMAIL, role: Role.ADMIN, phone: "0943533669", password: process.env.IOT_ADMIN_PASS },
+			{ email: process.env.GUARD_EMAIL, role: Role.GUARD, phone: "0943533999", password: process.env.GUARD_PASS }
 		];
 
 		for (const u of users) {

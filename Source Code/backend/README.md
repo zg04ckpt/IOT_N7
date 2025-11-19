@@ -5,6 +5,7 @@
 - Chạy các lệnh sau
 ```bash
 npm install
+npm run migrate
 npm run seed
 npm run start
 ```

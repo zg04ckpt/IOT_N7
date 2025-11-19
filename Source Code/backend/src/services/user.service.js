@@ -5,8 +5,8 @@ import Role from '../models/role.model.js';
 import { comparePassword, hashPassword } from '../utils/pass.util.js';
 
 class UserService {
-    async getAllUsers() {
-        const users = await userRepo.findAll();
+    async getAllUsers(page, size) {
+        const users = await userRepo.findAll(page, size);
         return users.map(user => user.toModel());
     }
 
@@ -23,8 +23,12 @@ class UserService {
             throw { statusCode: 400, message: 'Email không hợp lệ' };
         if (!User.isValidPassword(userData.password))
             throw { statusCode: 400, message: 'Mật khẩu dài ít nhất 6 kí tự' };
+        if (!User.isValidPhone(userData.phone))
+            throw { statusCode: 400, message: 'Số điện thoại không hợp lệ' };
         if (await userRepo.emailExists(userData.email))
             throw { statusCode: 400, message: 'Email đã được sử dụng' };
+        if (await userRepo.phoneExists(userData.phone))
+            throw { statusCode: 400, message: 'Số điện thoại đã được sử dụng' };
 
         userData.password = await hashPassword(userData.password);
         userData.role = Role.USER;
@@ -37,6 +41,10 @@ class UserService {
     async createUser(userData) {
         if (!User.isValidEmail(userData.email))
             throw { statusCode: 400, message: 'Email không hợp lệ' };
+        if (!User.isValidPhone(userData.phone))
+            throw { statusCode: 400, message: 'Số điện thoại không hợp lệ' };
+        if (await userRepo.phoneExists(userData.phone))
+            throw { statusCode: 400, message: 'Số điện thoại đã được sử dụng' };
         if (!User.isValidPassword(userData.password))
             throw { statusCode: 400, message: 'Mật khẩu dài ít nhất 6 kí tự' };
         if (await userRepo.emailExists(userData.email))

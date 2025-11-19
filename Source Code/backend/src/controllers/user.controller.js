@@ -2,12 +2,12 @@ import userService from "../services/user.service.js";
 import { successResponse } from "../utils/api.util.js";
 import dotenv from 'dotenv';
 
-dotenv.config()
+dotenv.config();
 
 class UserController {
     async getAll(req, res, next) {
         try {
-            const users = await userService.getAllUsers();
+            const users = await userService.getAllUsers(req.query.page, req.query.size);
             return successResponse(res, '', users)
         } catch (error) {
             next(error);
