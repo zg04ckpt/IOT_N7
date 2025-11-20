@@ -24,7 +24,9 @@
     "express-validator": "^7.0.1",
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.7.2",
-    "mysql2": "^3.6.5"
+    "multer": "^2.0.2",
+    "mysql2": "^3.6.5",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

@@ -11,7 +11,15 @@ const dbConfig = {
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  dateStrings: true,        
+  timezone: '+07:00', 
+  typeCast: function (field, next) {
+    if (field.type === 'DATETIME' || field.type === 'TIMESTAMP') {
+      return field.string();   // Ép tất cả về string
+    }
+    return next();
+  },
 };
 
 const pool = mysql.createPool(dbConfig);

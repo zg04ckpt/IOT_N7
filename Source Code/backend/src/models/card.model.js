@@ -1,5 +1,9 @@
 import { getDateAfferMonthsForSQL } from "../utils/time.util.js";
-import { CardType } from "./card-type.model.js";
+
+export const CardType = Object.freeze({
+    NORMAL: 'normal',
+    MONTHLY: 'monthly'
+});
 
 export class Card {
     constructor(cardData) {

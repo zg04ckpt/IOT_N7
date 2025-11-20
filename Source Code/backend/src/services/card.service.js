@@ -1,7 +1,8 @@
-import { CardType } from "../models/card-type.model.js";
-import { Card } from "../models/card.model.js";
+import { Card, CardType } from "../models/card.model.js";
 import cardRepo from "../repositories/card.repo.js";
+import invoiceRepo from "../repositories/invoice.repo.js";
 import { getDateAfferMonthsForSQL } from "../utils/time.util.js";
+import { Invoice, InvoiceSource } from "../models/invoice.model.js";
 
 class CardService {
     async getAllCards(page, size) {
@@ -37,7 +38,7 @@ class CardService {
         return card.toModel();
     }
 
-    async updateCard(id, info) {
+    async updateCard(id, info, user_id) {
         const card = await cardRepo.findById(id);
         if (!card)
             throw { statusCode: 400, message: 'Thẻ không tồn tại' };
@@ -76,6 +77,16 @@ class CardService {
             monthly_user_expiry: getDateAfferMonthsForSQL(info.months),
             monthly_user_address: info.address
         });
+
+        // Tự động tạo hóa đơn cho vé tháng
+        const amount = Invoice.calculateMonthlyFee(info.months);
+        await invoiceRepo.create({
+            amount,
+            from: InvoiceSource.MONTHLY_CARD,
+            user_id: user_id,
+            session_id: null
+        });
+
         return updatedCard.toModel();
     }
 

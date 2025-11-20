@@ -46,6 +46,8 @@ class CardRepo {
             monthly_user_address 
         } = cardData;
 
+        console.log(cardData)
+
         const [result] = await db.execute(
             `UPDATE cards 
             SET 

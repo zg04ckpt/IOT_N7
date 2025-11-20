@@ -40,7 +40,7 @@ class CardController {
 
     async registerMonthlyCard(req, res, next) {
         try {
-            const card = await cardService.updateCard(req.params.id, req.body);
+            const card = await cardService.updateCard(req.params.id, req.body, req.user.id);
             return successResponse(res, 'Đăng kí vé tháng thành công', card)
         } catch (error) {
             next(error);
@@ -49,7 +49,7 @@ class CardController {
 
     async unregisterMonthlyCard(req, res, next) {
         try {
-            const card = await cardService.updateCard(req.params.id, null);
+            const card = await cardService.updateCard(req.params.id, null, req.user.id);
             return successResponse(res, 'Hủy đăng kí vé tháng thành công', card)
         } catch (error) {
             next(error);

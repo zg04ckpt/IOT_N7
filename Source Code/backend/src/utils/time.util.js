@@ -7,3 +7,9 @@ export const getDateAfferMonthsForSQL = (m) => {
         .plus({ months: m })
         .toUTC().toSQL({ includeOffset: false });
 }
+
+export const getDateForSQL = () => {
+    return DateTime.now()
+        .setZone('Asia/Ho_Chi_Minh')
+        .toUTC().toSQL({ includeOffset: false });
+}
