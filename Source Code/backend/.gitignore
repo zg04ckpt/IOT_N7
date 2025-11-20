@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Uploads (user files)
+uploads/
+
+# Firmware versions (built binaries)
+firmware_versions/
+
+# Build artifacts and temp files
+temp/
+bin/
+
+# Arduino CLI tools and data
+tools/
+arduino-cli.exe
+arduino_data/
+
+# Test files (optional - xóa dòng này nếu muốn commit test files)
+test.js
+testf/
