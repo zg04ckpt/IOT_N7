@@ -20,6 +20,7 @@ import ListAltIcon from "@mui/icons-material/ListAlt";
 import SettingsIcon from "@mui/icons-material/Settings";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
+import MemoryIcon from "@mui/icons-material/Memory";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useAuth } from "../contexts/authContext";
 
@@ -30,6 +31,7 @@ const menuItems = [
   { label: "Danh sách xe gửi", path: "/parking-list", icon: ListAltIcon },
   { label: "Quản lý thiết bị", path: "/device-management", icon: SettingsIcon },
   { label: "Quản lý vé xe", path: "/card-management", icon: CreditCardIcon },
+  { label: "Quản lý firmware", path: "/firmware-management", icon: MemoryIcon },
   { label: "Đăng ký vé tháng", path: "/monthly-ticket", icon: ReceiptIcon },
   { label: "Đăng xuất", path: "/logout", icon: LogoutIcon },
 ];

@@ -13,6 +13,7 @@ import ParkingList from "./pages/ParkingList";
 import DeviceManagement from "./pages/DeviceManagement";
 import CardManagement from "./pages/CardManagement";
 import MonthlyTicket from "./pages/MonthlyTicket";
+import FirmwareManagement from "./pages/FirmwareManagement";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
@@ -208,6 +209,7 @@ function AppContent() {
           <Route path="device-management" element={<DeviceManagement />} />
           <Route path="card-management" element={<CardManagement />} />
           <Route path="monthly-ticket" element={<MonthlyTicket />} />
+          <Route path="firmware-management" element={<FirmwareManagement />} />
 
           <Route index element={<Navigate to="dashboard" replace />} />
         </Route>
