@@ -59,6 +59,7 @@ class UserService {
             throw { statusCode: 403, message: 'Không thể tạo tài khoản ADMIN' };
             
         userData.password = await hashPassword(userData.password);
+        userData.plate = null;
 
         const user = await userRepo.create(userData);
 
