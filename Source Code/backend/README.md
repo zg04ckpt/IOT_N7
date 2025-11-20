@@ -9,21 +9,3 @@ npm run migrate
 npm run seed
 npm run start
 ```
-
-### Migration
-- Tạo file migration mẫu
-```bash
-npm run migrate:create
-```
-- Chạy migration
-```bash
-npm run migrate
-```
-- Rollback migration
-```bash
-npm run migrate:rollback
-```
-- Xem trạng thái migration
-```bash
-npm run migrate:status
-```

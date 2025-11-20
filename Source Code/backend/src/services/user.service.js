@@ -25,6 +25,8 @@ class UserService {
             throw { statusCode: 400, message: 'Mật khẩu dài ít nhất 6 kí tự' };
         if (!User.isValidPhone(userData.phone))
             throw { statusCode: 400, message: 'Số điện thoại không hợp lệ' };
+        if (userData.plate && !User.isValidPlate(userData.plate))
+            throw { statusCode: 400, message: 'Biển số xe không hợp lệ' };
         if (await userRepo.emailExists(userData.email))
             throw { statusCode: 400, message: 'Email đã được sử dụng' };
         if (await userRepo.phoneExists(userData.phone))
@@ -98,6 +100,24 @@ class UserService {
         return {
             user: user.toModel(),
             token
+        };
+    }
+
+    async getProfile(userId) {
+        const user = await userRepo.findById(userId);
+        if (!user)
+            throw { statusCode: 404, message: 'Người dùng không tồn tại' };
+
+        // Lấy thông tin thẻ tháng theo phone
+        const monthlyCard = user.phone ? await userRepo.getMonthlyCardByPhone(user.phone) : null;
+
+        // Lấy thông tin các phiên đỗ xe theo plate
+        const parkingSessions = user.plate ? await userRepo.getParkingSessionsByPlate(user.plate) : [];
+
+        return {
+            user: user.toModel(),
+            monthly_card: monthlyCard,
+            parking_sessions: parkingSessions
         };
     }
 }

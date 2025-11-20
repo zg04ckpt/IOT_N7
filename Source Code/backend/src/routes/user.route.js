@@ -10,7 +10,9 @@ const userRouter = express.Router();
 userRouter.post('/register', userController.register);
 userRouter.post('/login', userController.login);
 userRouter.post('/logout', userController.logout);
-// router.post('/profile', userController.login); -> Chưa phát triển
+
+// Authenticated users
+userRouter.get('/profile', authMiddleware, userController.getProfile);
 
 
 // Quản lý, admin

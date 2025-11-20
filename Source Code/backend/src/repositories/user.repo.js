@@ -29,10 +29,10 @@ class UserRepo {
     }
 
     async create(userData) {
-        const { email, role, password, phone } = userData;
+        const { email, role, password, phone, plate } = userData;
         const [result] = await db.execute(
-            'INSERT INTO users (email, role, password, phone) VALUES (?, ?, ?, ?)',
-            [email, role, password, phone]
+            'INSERT INTO users (email, role, password, phone, plate) VALUES (?, ?, ?, ?, ?)',
+            [email, role, password, phone, plate]
         );
         return await this.findById(result.insertId);
     }
@@ -64,6 +64,29 @@ class UserRepo {
             [id]
         );
         return rows[0].count > 0;
+    }
+
+    async getMonthlyCardByPhone(phone) {
+        const [cards] = await db.execute(
+            `SELECT * FROM cards 
+             WHERE monthly_user_phone = ? AND type = 'MONTHLY' AND monthly_user_expiry > NOW() 
+             ORDER BY monthly_user_expiry DESC LIMIT 1`,
+            [phone]
+        );
+        return cards.length > 0 ? cards[0] : null;
+    }
+
+    async getParkingSessionsByPlate(plate, limit = 50) {
+        const [sessions] = await db.execute(
+            `SELECT s.*, i.amount as total_amount, i.id as invoice_id 
+             FROM sessions s 
+             LEFT JOIN invoices i ON i.session_id = s.id 
+             WHERE s.plate = ? 
+             ORDER BY s.check_in DESC 
+             LIMIT ${limit}`,
+            [plate]
+        );
+        return sessions;
     }
 }
 

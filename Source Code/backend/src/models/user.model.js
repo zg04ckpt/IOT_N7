@@ -4,6 +4,7 @@
             this.email = data.email;
             this.role = data.role;
             this.phone = data.phone;
+            this.plate = data.plate;
             this.password = data.password;
             this.created_at = data.created_at;
             this.updated_at = data.updated_at;
@@ -22,12 +23,17 @@
             return phone && phone.length <= 15 && /^[0-9]+$/.test(phone);
         }
 
+        static isValidPlate(plate) {
+            return !plate || (plate.length <= 20 && /^[A-Z0-9\-\.]+$/i.test(plate));
+        }
+
         toModel() {
             return {
                 id: this.id,
                 role: this.role,
                 email: this.email,
                 phone: this.phone,
+                plate: this.plate,
                 created_at: this.created_at,
                 updated_at: this.updated_at
             };

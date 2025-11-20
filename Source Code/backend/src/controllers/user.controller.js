@@ -73,6 +73,15 @@ class UserController {
         res.clearCookie('access_token');
         return successResponse(res, 'Đăng xuất thành công', null);
     }
+
+    async getProfile(req, res, next) {
+        try {
+            const profile = await userService.getProfile(req.user.id);
+            return successResponse(res, '', profile);
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default new UserController();
