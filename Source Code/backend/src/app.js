@@ -5,16 +5,15 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
+import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+dotenv.config();
+
 const app = express();
 
-const allowedOrigins = [
-    'http://localhost:5500',
-    'http://127.0.0.1:5500',
-    'http://localhost:5173'
-];
+const allowedOrigins = process.env.CORS_ORIGINS.split(',');
 
 app.use(cors({
     origin: function(origin, callback) {
