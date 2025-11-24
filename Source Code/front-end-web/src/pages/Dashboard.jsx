@@ -739,7 +739,7 @@ export default function Dashboard() {
                         width: "30%",
                       }}
                     >
-                      Khách hàng
+                      Nhân viên thu tiền
                     </TableCell>
                   </TableRow>
                 </TableHead>

@@ -42,8 +42,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SortIcon from "@mui/icons-material/Sort";
-import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
-import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
 import { getAllSessions } from "../api/session";
 import { getCardById } from "../api/card";
 import { getInvoiceBySessionId } from "../api/invoice";
@@ -700,12 +698,6 @@ export default function ParkingList() {
                       align="center"
                       sx={{ fontWeight: 700, color: "text.primary" }}
                     >
-                      Loại vé
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{ fontWeight: 700, color: "text.primary" }}
-                    >
                       Giờ vào
                     </TableCell>
                     <TableCell
@@ -793,13 +785,16 @@ export default function ParkingList() {
                     // Helper to get image URL (handle absolute and relative URLs)
                     const getImageUrl = (imageUrl) => {
                       if (!imageUrl) return null;
+                      // If URL is already absolute, return as is
                       if (
                         imageUrl.startsWith("http://") ||
                         imageUrl.startsWith("https://")
                       ) {
                         return imageUrl;
                       }
-                      return imageUrl;
+                      return `${
+                        import.meta.env.API_URL || "http://localhost:4000"
+                      }${imageUrl}`;
                     };
 
                     return (
@@ -1045,46 +1040,6 @@ export default function ParkingList() {
                           sx={{ fontWeight: 600, py: 2 }}
                         >
                           {plate}
-                        </TableCell>
-                        <TableCell align="center" sx={{ py: 2 }}>
-                          <Chip
-                            icon={
-                              ticketType === "Vé lượt" ? (
-                                <DirectionsCarIcon
-                                  sx={{
-                                    fontSize: "14px !important",
-                                    color: "#e65100 !important",
-                                  }}
-                                />
-                              ) : (
-                                <ConfirmationNumberIcon
-                                  sx={{
-                                    fontSize: "14px !important",
-                                    color: "#7b1fa2 !important",
-                                  }}
-                                />
-                              )
-                            }
-                            label={ticketType}
-                            size="small"
-                            sx={{
-                              backgroundColor:
-                                ticketType === "Vé lượt"
-                                  ? "#fff3e0"
-                                  : "#f3e5f5",
-                              color:
-                                ticketType === "Vé lượt"
-                                  ? "#e65100"
-                                  : "#7b1fa2",
-                              fontWeight: 600,
-                              borderRadius: "8px",
-                              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-                              fontSize: "0.75rem",
-                              "& .MuiChip-icon": {
-                                marginLeft: "8px",
-                              },
-                            }}
-                          />
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
                           {formatDate(row.check_in)}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
 import {
   Box,
   Card,
@@ -34,7 +33,6 @@ import {
 } from "@mui/material";
 import { motion } from "framer-motion";
 import LoadingScreen from "../components/LoadingScreen";
-import AddIcon from "@mui/icons-material/Add";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import WarningIcon from "@mui/icons-material/Warning";
 import SearchIcon from "@mui/icons-material/Search";
@@ -43,12 +41,7 @@ import SortIcon from "@mui/icons-material/Sort";
 import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
 import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
 import { CiTrash } from "react-icons/ci";
-import {
-  getAllCards,
-  deleteCard,
-  registerMonthlyCard,
-  unregisterMonthlyCard,
-} from "../api/card";
+import { getAllCards, deleteCard } from "../api/card";
 import { useSnackbar } from "../contexts/SnackbarContext";
 
 const MotionCard = motion(Card);
@@ -61,9 +54,6 @@ export default function CardManagement() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const [openDialog, setOpenDialog] = useState(false);
-  const [dialogType, setDialogType] = useState("add");
-  const [selectedCard, setSelectedCard] = useState(null);
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState(false);
   const [cardToDelete, setCardToDelete] = useState(null);
 
@@ -75,9 +65,6 @@ export default function CardManagement() {
   const [searchPhone, setSearchPhone] = useState("");
   const [filterType, setFilterType] = useState("Vé lượt");
   const [sortOrder, setSortOrder] = useState("desc");
-
-  const [unregisterConfirmDialog, setUnregisterConfirmDialog] = useState(false);
-  const [cardToUnregister, setCardToUnregister] = useState(null);
 
   useEffect(() => {
     const fetchCards = async () => {
@@ -151,73 +138,6 @@ export default function CardManagement() {
     page * rowsPerPage + rowsPerPage
   );
 
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors, isValid },
-    trigger,
-  } = useForm({
-    mode: "onBlur",
-    defaultValues: {
-      cardId: "",
-      name: "",
-      phone: "",
-      months: "",
-      address: "",
-    },
-  });
-
-  const handleOpenDialog = () => {
-    setDialogType("add");
-    setSelectedCard(null);
-    reset({
-      cardId: "",
-      name: "",
-      phone: "",
-      months: "",
-      address: "",
-    });
-    setOpenDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    reset();
-  };
-
-  const handleSaveCard = async (formData) => {
-    try {
-      setRefreshing(true);
-      setError(null);
-
-      const response = await registerMonthlyCard(formData.cardId, {
-        name: formData.name.trim(),
-        phone: formData.phone.trim(),
-        months: Number(formData.months),
-        address: formData.address.trim(),
-      });
-
-      if (response && response.success) {
-        const cardsResponse = await getAllCards();
-        if (cardsResponse.success) {
-          setCards(cardsResponse.data || []);
-        }
-        handleCloseDialog();
-        showSuccess("Đăng ký vé tháng thành công!");
-      }
-    } catch (error) {
-      console.error("Error registering monthly card:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        "Không thể đăng ký vé tháng. Vui lòng thử lại.";
-      showError(errorMessage);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   const handleDeleteClick = (id) => {
     setCardToDelete(id);
     setDeleteConfirmDialog(true);
@@ -270,36 +190,6 @@ export default function CardManagement() {
         return;
       }
       setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const handleUnregisterClick = (id) => {
-    setCardToUnregister(id);
-    setUnregisterConfirmDialog(true);
-  };
-
-  const handleConfirmUnregister = async () => {
-    try {
-      setRefreshing(true);
-      setError(null);
-      const response = await unregisterMonthlyCard(cardToUnregister);
-      if (response.success) {
-        const cardsResponse = await getAllCards();
-        if (cardsResponse.success) {
-          setCards(cardsResponse.data || []);
-        }
-        setUnregisterConfirmDialog(false);
-        setCardToUnregister(null);
-        showSuccess("Hủy đăng ký vé tháng thành công!");
-      }
-    } catch (error) {
-      console.error("Error unregistering monthly card:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        "Không thể hủy đăng ký vé tháng. Vui lòng thử lại.";
-      showError(errorMessage);
     } finally {
       setRefreshing(false);
     }
@@ -360,30 +250,6 @@ export default function CardManagement() {
             Quản lý các loại vé xe trong hệ thống
           </Typography>
         </Box>
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog("add")}
-            sx={{
-              background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
-              borderRadius: "10px",
-              fontWeight: 600,
-              textTransform: "none",
-              fontSize: "1rem",
-              px: 3,
-              py: 1.5,
-              boxShadow: "0 4px 12px rgba(30, 136, 229, 0.3)",
-              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              "&:hover": {
-                boxShadow: "0 6px 16px rgba(30, 136, 229, 0.4)",
-                transform: "translateY(-2px)",
-              },
-            }}
-          >
-            Đăng ký vé tháng
-          </Button>
-        </motion.div>
       </MotionBox>
 
       {/* Stats */}
@@ -1132,33 +998,6 @@ export default function CardManagement() {
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                             >
-                              <Tooltip title="Hủy đăng ký">
-                                <Button
-                                  size="small"
-                                  startIcon={<CiTrash />}
-                                  onClick={() => handleUnregisterClick(card.id)}
-                                  sx={{
-                                    borderRadius: "8px",
-                                    textTransform: "none",
-                                    fontWeight: 600,
-                                    color: "#ff9800",
-                                    fontSize: "0.75rem",
-                                    px: 1.5,
-                                    py: 0.5,
-                                    transition: "all 0.3s",
-                                    "&:hover": {
-                                      bgcolor: "rgba(255, 152, 0, 0.1)",
-                                    },
-                                  }}
-                                >
-                                  Hủy đăng ký
-                                </Button>
-                              </Tooltip>
-                            </motion.div>
-                            <motion.div
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                            >
                               <Tooltip title="Xóa">
                                 <Button
                                   size="small"
@@ -1218,310 +1057,6 @@ export default function CardManagement() {
         </CardContent>
       </MotionCard>
 
-      {/* Main Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700, fontSize: "1.2rem" }}>
-          Đăng ký vé tháng
-        </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <form onSubmit={handleSubmit(handleSaveCard)}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Controller
-                name="cardId"
-                control={control}
-                rules={{ required: "Vui lòng chọn thẻ" }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                    style={{ marginTop: "10px" }}
-                  >
-                    <FormControl fullWidth error={!!error}>
-                      <InputLabel id="card-select-label">Chọn thẻ</InputLabel>
-                      <Select
-                        labelId="card-select-label"
-                        id="card-select"
-                        {...field}
-                        label="Chọn thẻ"
-                        onChange={(e) => {
-                          field.onChange(e);
-                          trigger("cardId");
-                        }}
-                        onBlur={() => trigger("cardId")}
-                        sx={{
-                          marginTop: "10px",
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "& .MuiOutlinedInput-root": {
-                            transition: "all 0.3s",
-                            "&:hover": {
-                              boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                            },
-                            "&.Mui-focused": {
-                              boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                            },
-                          },
-                        }}
-                      >
-                        {cards
-                          .filter((card) => card.type === "normal")
-                          .map((card) => (
-                            <MenuItem key={card.id} value={card.id}>
-                              ID: {card.id} - {card.uid || "N/A"}
-                            </MenuItem>
-                          ))}
-                      </Select>
-                      {error && (
-                        <Typography
-                          variant="caption"
-                          color="error"
-                          sx={{ mt: 0.5, ml: 1.5 }}
-                        >
-                          {error.message}
-                        </Typography>
-                      )}
-                    </FormControl>
-                  </motion.div>
-                )}
-              />
-              <Controller
-                name="name"
-                control={control}
-                rules={{
-                  required: "Tên không được để trống",
-                  validate: (value) => {
-                    const trimmed = value?.trim();
-                    if (!trimmed || trimmed.length === 0) {
-                      return "Tên không được để trống";
-                    }
-                    if (trimmed.length > 50) {
-                      return "Tên không được vượt quá 50 ký tự";
-                    }
-                    if (!/^[\p{L}\s]+$/u.test(trimmed)) {
-                      return "Tên chỉ được chứa chữ cái và khoảng trắng";
-                    }
-                    return true;
-                  },
-                }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Tên người đăng ký"
-                      error={!!error}
-                      helperText={error?.message}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        trigger("name");
-                      }}
-                      onBlur={() => trigger("name")}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                          },
-                          "&.Mui-focused": {
-                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-                )}
-              />
-              <Controller
-                name="phone"
-                control={control}
-                rules={{
-                  required: "Số điện thoại không được để trống",
-                  validate: (value) => {
-                    const trimmed = value?.trim();
-                    if (!trimmed || trimmed.length === 0) {
-                      return "Số điện thoại không được để trống";
-                    }
-                    if (trimmed.length > 15) {
-                      return "Số điện thoại không được vượt quá 15 ký tự";
-                    }
-                    if (!/^[0-9]+$/.test(trimmed)) {
-                      return "Số điện thoại chỉ được chứa số";
-                    }
-                    return true;
-                  },
-                }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Số điện thoại"
-                      error={!!error}
-                      helperText={error?.message}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        trigger("phone");
-                      }}
-                      onBlur={() => trigger("phone")}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                          },
-                          "&.Mui-focused": {
-                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-                )}
-              />
-              <Controller
-                name="months"
-                control={control}
-                rules={{
-                  required: "Số tháng không được để trống",
-                  validate: (value) => {
-                    const num = Number(value);
-                    if (!value || value === "") {
-                      return "Số tháng không được để trống";
-                    }
-                    if (isNaN(num) || num <= 0) {
-                      return "Số tháng phải là số dương";
-                    }
-                    return true;
-                  },
-                }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Số tháng đăng ký"
-                      type="number"
-                      error={!!error}
-                      helperText={error?.message}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        trigger("months");
-                      }}
-                      onBlur={() => trigger("months")}
-                      inputProps={{ min: 1 }}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                          },
-                          "&.Mui-focused": {
-                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-                )}
-              />
-              <Controller
-                name="address"
-                control={control}
-                rules={{
-                  required: "Địa chỉ không được để trống",
-                  validate: (value) => {
-                    const trimmed = value?.trim();
-                    if (!trimmed || trimmed.length === 0) {
-                      return "Địa chỉ không được để trống";
-                    }
-                    if (trimmed.length > 20) {
-                      return "Địa chỉ không được vượt quá 20 ký tự";
-                    }
-                    if (!/^[\p{L}\s]+$/u.test(trimmed)) {
-                      return "Địa chỉ chỉ được chứa chữ cái và khoảng trắng";
-                    }
-                    return true;
-                  },
-                }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Địa chỉ"
-                      error={!!error}
-                      helperText={error?.message}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        trigger("address");
-                      }}
-                      onBlur={() => trigger("address")}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                          },
-                          "&.Mui-focused": {
-                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-                )}
-              />
-            </Box>
-          </form>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCloseDialog} sx={{ textTransform: "none" }}>
-            Hủy
-          </Button>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button
-              onClick={handleSubmit(handleSaveCard)}
-              variant="contained"
-              disabled={!isValid || refreshing}
-              sx={{
-                background: isValid
-                  ? "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)"
-                  : "rgba(0, 0, 0, 0.12)",
-                textTransform: "none",
-                fontWeight: 600,
-                "&:disabled": {
-                  color: "rgba(0, 0, 0, 0.26)",
-                  backgroundColor: "rgba(0, 0, 0, 0.12)",
-                },
-              }}
-            >
-              {refreshing ? "Đang xử lý..." : "Đăng ký"}
-            </Button>
-          </motion.div>
-        </DialogActions>
-      </Dialog>
-
       <Dialog
         open={deleteConfirmDialog}
         onClose={() => setDeleteConfirmDialog(false)}
@@ -1575,82 +1110,6 @@ export default function CardManagement() {
                 }}
               >
                 {refreshing ? "Đang xóa..." : "Xóa"}
-              </Button>
-            </motion.div>
-          </DialogActions>
-        </motion.div>
-      </Dialog>
-
-      <Dialog
-        open={unregisterConfirmDialog}
-        onClose={() => setUnregisterConfirmDialog(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.2 }}
-        >
-          <DialogTitle
-            sx={{
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-            }}
-          >
-            <WarningIcon sx={{ color: "#ff9800" }} />
-            Xác nhận hủy đăng ký
-          </DialogTitle>
-          <DialogContent>
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              Bạn có chắc chắn muốn hủy đăng ký vé tháng này không? Thẻ sẽ được
-              chuyển về vé lượt.
-            </Alert>
-            <Typography color="textSecondary">
-              Thẻ:{" "}
-              <strong>
-                {cards.find((c) => c.id === cardToUnregister)?.uid || "N/A"}
-              </strong>
-            </Typography>
-            {cards.find((c) => c.id === cardToUnregister)
-              ?.monthly_user_name && (
-              <Typography color="textSecondary" sx={{ mt: 1 }}>
-                Khách hàng:{" "}
-                <strong>
-                  {
-                    cards.find((c) => c.id === cardToUnregister)
-                      ?.monthly_user_name
-                  }
-                </strong>
-              </Typography>
-            )}
-          </DialogContent>
-          <DialogActions sx={{ p: 2 }}>
-            <Button
-              onClick={() => setUnregisterConfirmDialog(false)}
-              sx={{ textTransform: "none" }}
-            >
-              Hủy
-            </Button>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                onClick={handleConfirmUnregister}
-                variant="contained"
-                disabled={refreshing}
-                sx={{
-                  background:
-                    "linear-gradient(135deg, #ff9800 0%, #fb8c00 100%)",
-                  textTransform: "none",
-                  fontWeight: 600,
-                  "&:disabled": {
-                    color: "rgba(0, 0, 0, 0.26)",
-                    backgroundColor: "rgba(0, 0, 0, 0.12)",
-                  },
-                }}
-              >
-                {refreshing ? "Đang xử lý..." : "Xác nhận"}
               </Button>
             </motion.div>
           </DialogActions>

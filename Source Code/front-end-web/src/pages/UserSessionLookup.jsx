@@ -147,8 +147,18 @@ export default function UserSessionLookup() {
     navigate("/login", { replace: true });
   };
 
+  // Helper to get image URL (handle absolute and relative URLs)
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    // If URL is already absolute, return as is
+    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+      return imageUrl;
+    }
+    return `${import.meta.env.API_URL || "http://localhost:4000"}${imageUrl}`;
+  };
+
   const handleImageClick = (imageUrl, plate, type) => {
-    setSelectedImage({ url: imageUrl, plate, type });
+    setSelectedImage({ url: getImageUrl(imageUrl), plate, type });
     setLightboxOpen(true);
   };
 
@@ -701,7 +711,9 @@ export default function UserSessionLookup() {
                                       {session.check_in_image_url ? (
                                         <>
                                           <img
-                                            src={session.check_in_image_url}
+                                            src={getImageUrl(
+                                              session.check_in_image_url
+                                            )}
                                             alt="Check-in"
                                             style={{
                                               width: "100%",
@@ -830,7 +842,9 @@ export default function UserSessionLookup() {
                                       {session.check_out_image_url ? (
                                         <>
                                           <img
-                                            src={session.check_out_image_url}
+                                            src={getImageUrl(
+                                              session.check_out_image_url
+                                            )}
                                             alt="Check-out"
                                             style={{
                                               width: "100%",
