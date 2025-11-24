@@ -42,7 +42,11 @@ import CloseIcon from "@mui/icons-material/Close";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SortIcon from "@mui/icons-material/Sort";
-import { getAllParkingSessions } from "../api/parkingSession";
+import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
+import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
+import { getAllSessions } from "../api/session";
+import { getCardById } from "../api/card";
+import { getInvoiceBySessionId } from "../api/invoice";
 import * as XLSX from "xlsx";
 
 const MotionBox = motion(Box);
@@ -54,6 +58,8 @@ export default function ParkingList() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [parkingData, setParkingData] = useState([]);
+  const [cards, setCards] = useState({}); // Map session_id -> card info
+  const [invoices, setInvoices] = useState({}); // Map session_id -> invoice amount
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -68,10 +74,28 @@ export default function ParkingList() {
       try {
         setLoading(true);
         setError(null);
-        const response = await getAllParkingSessions();
-        setParkingData(response.data.data || []);
+        const response = await getAllSessions(1, 1000);
+        const sessions = response.data?.data || [];
+        setParkingData(sessions);
+
+        // Fetch card info for all sessions
+        if (sessions.length > 0) {
+          fetchCardsForSessions(sessions);
+        }
+
+        // Fetch invoices for completed sessions
+        const completedSessions = sessions.filter(
+          (s) => s.status === "end" && s.check_out && s.check_out_image_url
+        );
+        if (completedSessions.length > 0) {
+          fetchInvoicesForSessions(completedSessions);
+        }
       } catch (err) {
         console.error("Error fetching parking sessions:", err);
+        // Nếu là lỗi 403, để axios interceptor xử lý redirect
+        if (err.response?.status === 403) {
+          return;
+        }
         setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
       } finally {
         setLoading(false);
@@ -81,10 +105,50 @@ export default function ParkingList() {
     fetchParkingSessions();
   }, []);
 
+  const fetchCardsForSessions = async (sessions) => {
+    const cardPromises = sessions.map(async (session) => {
+      if (!session.card_id) return;
+      try {
+        const response = await getCardById(session.card_id);
+        if (response.success && response.data) {
+          setCards((prev) => ({
+            ...prev,
+            [session.id]: response.data,
+          }));
+        }
+      } catch (err) {
+        console.error(`Error fetching card for session ${session.id}:`, err);
+      }
+    });
+
+    await Promise.all(cardPromises);
+  };
+
+  const fetchInvoicesForSessions = async (completedSessions) => {
+    const invoicePromises = completedSessions.map(async (session) => {
+      try {
+        const response = await getInvoiceBySessionId(session.id);
+        if (response.success && response.data) {
+          setInvoices((prev) => ({
+            ...prev,
+            [session.id]: response.data.amount,
+          }));
+        }
+      } catch (err) {
+        console.error(`Error fetching invoice for session ${session.id}:`, err);
+      }
+    });
+
+    await Promise.all(invoicePromises);
+  };
+
   const filteredData = parkingData
     .filter((item) => {
-      const plate = item?.licensePlate || item?.plate || "";
-      const status = item?.timeEnd ? "Đã thanh toán" : "Đang gửi";
+      const plate = item?.plate || "";
+      // Check if session is truly completed
+      const hasCheckout =
+        item.status === "end" && item.check_out && item.check_out_image_url;
+      const status = hasCheckout ? "Đã thanh toán" : "Đang gửi";
 
       const matchPlate = plate
         .toLowerCase()
@@ -94,10 +158,10 @@ export default function ParkingList() {
       let matchDate = true;
 
       if (filterStartDate || filterEndDate) {
-        const itemStartDate = new Date(item.timeStart);
-        const itemEndDate = item.timeEnd
-          ? new Date(item.timeEnd)
-          : new Date(item.timeStart);
+        const itemStartDate = new Date(item.check_in);
+        const itemEndDate = item.check_out
+          ? new Date(item.check_out)
+          : new Date(item.check_in);
 
         let matchStart = true;
         let matchEnd = true;
@@ -120,8 +184,8 @@ export default function ParkingList() {
       return matchPlate && matchStatus && matchDate;
     })
     .sort((a, b) => {
-      const dateA = new Date(a.timeStart);
-      const dateB = new Date(b.timeStart);
+      const dateA = new Date(a.check_in);
+      const dateB = new Date(b.check_in);
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
 
@@ -134,8 +198,8 @@ export default function ParkingList() {
     setPage(0);
   };
 
-  const handleImageClick = (imageUrl, plate) => {
-    setSelectedImage({ url: imageUrl, plate });
+  const handleImageClick = (imageUrl, plate, type) => {
+    setSelectedImage({ url: imageUrl, plate, type });
     setLightboxOpen(true);
   };
 
@@ -148,8 +212,21 @@ export default function ParkingList() {
     try {
       setRefreshing(true);
       setError(null);
-      const response = await getAllParkingSessions();
-      setParkingData(response.data.data || []);
+      const response = await getAllSessions(1, 1000);
+      const sessions = response.data?.data || [];
+      setParkingData(sessions);
+
+      // Fetch card info and invoices
+      if (sessions.length > 0) {
+        await fetchCardsForSessions(sessions);
+        const completedSessions = sessions.filter(
+          (s) => s.status === "end" && s.check_out && s.check_out_image_url
+        );
+        if (completedSessions.length > 0) {
+          await fetchInvoicesForSessions(completedSessions);
+        }
+      }
+
       setSearchPlate("");
       setFilterStatus("all");
       setFilterStartDate(null);
@@ -157,6 +234,10 @@ export default function ParkingList() {
       setPage(0);
     } catch (err) {
       console.error("Error refreshing parking sessions:", err);
+      // Nếu là lỗi 403, để axios interceptor xử lý redirect
+      if (err.response?.status === 403) {
+        return;
+      }
       setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
     } finally {
       setRefreshing(false);
@@ -205,22 +286,27 @@ export default function ParkingList() {
           return `${price.toLocaleString("vi-VN")} VND`;
         };
 
-        const status = item.timeEnd ? "Đã thanh toán" : "Đang gửi";
-        const plate = item.licensePlate || item.plate || "N/A";
-        const ticketType = item.isMonthlyCard ? "Vé tháng" : "Vé lượt";
+        const hasCheckout =
+          item.status === "end" && item.check_out && item.check_out_image_url;
+        const status = hasCheckout ? "Đã thanh toán" : "Đang gửi";
+        const plate = item.plate || "N/A";
+        const card = cards[item.id];
+        const isMonthlyCard = card?.type === "monthly";
+        const ticketType = isMonthlyCard ? "Vé tháng" : "Vé lượt";
+        const invoiceAmount = invoices[item.id];
 
         return {
           STT: index + 1,
-          "ID thẻ": item.cardId || "N/A",
+          "ID thẻ": item.card_id || "N/A",
           "Biển số": plate,
           "Loại vé": ticketType,
-          "Giờ vào": formatDate(item.timeStart),
-          "Giờ ra": formatDate(item.timeEnd),
-          "Thời gian": calculateDuration(item.timeStart, item.timeEnd),
-          Tiền: formatPrice(item.price, item.isMonthlyCard),
+          "Giờ vào": formatDate(item.check_in),
+          "Giờ ra": formatDate(item.check_out),
+          "Thời gian": calculateDuration(item.check_in, item.check_out),
+          Tiền: formatPrice(invoiceAmount, isMonthlyCard),
           "Trạng thái": status,
-          "Link ảnh": item.imageUrl || "-",
-          "Ngày tạo": formatDate(item.createdAt),
+          "Link ảnh vào": item.check_in_image_url || "-",
+          "Link ảnh ra": item.check_out_image_url || "-",
         };
       });
 
@@ -237,8 +323,8 @@ export default function ParkingList() {
         { wch: 15 }, // Thời gian
         { wch: 15 }, // Tiền
         { wch: 15 }, // Trạng thái
-        { wch: 50 }, // Link ảnh
-        { wch: 20 }, // Ngày tạo
+        { wch: 50 }, // Link ảnh vào
+        { wch: 50 }, // Link ảnh ra
       ];
       ws["!cols"] = colWidths;
 
@@ -590,7 +676,13 @@ export default function ParkingList() {
                       align="center"
                       sx={{ fontWeight: 700, color: "text.primary" }}
                     >
-                      Hình ảnh
+                      Ảnh vào
+                    </TableCell>
+                    <TableCell
+                      align="center"
+                      sx={{ fontWeight: 700, color: "text.primary" }}
+                    >
+                      Ảnh ra
                     </TableCell>
                     <TableCell
                       align="center"
@@ -680,14 +772,35 @@ export default function ParkingList() {
                     const formatPrice = (price, ticketType) => {
                       if (ticketType === "Vé tháng") return "-";
                       if (!price || price === 0) return "-";
-                      return `${price.toLocaleString("vi-VN")} VND`;
+                      return new Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(price);
                     };
 
-                    const status = row.timeEnd ? "Đã thanh toán" : "Đang gửi";
-                    const plate = row.licensePlate || row.plate || "N/A";
-                    const ticketType = row.isMonthlyCard
-                      ? "Vé tháng"
-                      : "Vé lượt";
+                    // Check if session is truly completed
+                    const hasCheckout =
+                      row.status === "end" &&
+                      row.check_out &&
+                      row.check_out_image_url;
+                    const status = hasCheckout ? "Đã thanh toán" : "Đang gửi";
+                    const plate = row.plate || "N/A";
+                    const card = cards[row.id];
+                    const isMonthlyCard = card?.type === "monthly";
+                    const ticketType = isMonthlyCard ? "Vé tháng" : "Vé lượt";
+                    const invoiceAmount = invoices[row.id];
+
+                    // Helper to get image URL (handle absolute and relative URLs)
+                    const getImageUrl = (imageUrl) => {
+                      if (!imageUrl) return null;
+                      if (
+                        imageUrl.startsWith("http://") ||
+                        imageUrl.startsWith("https://")
+                      ) {
+                        return imageUrl;
+                      }
+                      return imageUrl;
+                    };
 
                     return (
                       <motion.tr
@@ -699,12 +812,13 @@ export default function ParkingList() {
                           duration: 0.3,
                         }}
                       >
+                        {/* Check-in Image */}
                         <TableCell align="center" sx={{ py: 2 }}>
                           <Tooltip
                             title={
-                              row.imageUrl
-                                ? "Click để xem chi tiết"
-                                : "Không có hình ảnh"
+                              row.check_in_image_url
+                                ? "Click để xem ảnh check-in"
+                                : "Không có ảnh check-in"
                             }
                             placement="top"
                             arrow
@@ -718,10 +832,12 @@ export default function ParkingList() {
                                 mx: "auto",
                                 boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
                                 border: "2px solid #e3f2fd",
-                                cursor: row.imageUrl ? "pointer" : "default",
+                                cursor: row.check_in_image_url
+                                  ? "pointer"
+                                  : "default",
                                 position: "relative",
                                 transition: "all 0.3s ease",
-                                "&:hover": row.imageUrl
+                                "&:hover": row.check_in_image_url
                                   ? {
                                       transform: "scale(1.05)",
                                       boxShadow:
@@ -731,15 +847,19 @@ export default function ParkingList() {
                                   : {},
                               }}
                               onClick={() =>
-                                row.imageUrl &&
-                                handleImageClick(row.imageUrl, plate)
+                                row.check_in_image_url &&
+                                handleImageClick(
+                                  getImageUrl(row.check_in_image_url),
+                                  plate,
+                                  "checkin"
+                                )
                               }
                             >
-                              {row.imageUrl ? (
+                              {row.check_in_image_url ? (
                                 <>
                                   <img
-                                    src={row.imageUrl}
-                                    alt={`Xe ${plate}`}
+                                    src={getImageUrl(row.check_in_image_url)}
+                                    alt={`Check-in ${plate}`}
                                     style={{
                                       width: "100%",
                                       height: "100%",
@@ -781,7 +901,9 @@ export default function ParkingList() {
                                 sx={{
                                   width: "100%",
                                   height: "100%",
-                                  display: row.imageUrl ? "none" : "flex",
+                                  display: row.check_in_image_url
+                                    ? "none"
+                                    : "flex",
                                   alignItems: "center",
                                   justifyContent: "center",
                                   backgroundColor: "#f5f5f5",
@@ -795,6 +917,115 @@ export default function ParkingList() {
                             </Box>
                           </Tooltip>
                         </TableCell>
+
+                        {/* Check-out Image */}
+                        <TableCell align="center" sx={{ py: 2 }}>
+                          <Tooltip
+                            title={
+                              row.check_out_image_url
+                                ? "Click để xem ảnh check-out"
+                                : hasCheckout
+                                ? "Chưa có ảnh check-out"
+                                : "Chưa checkout"
+                            }
+                            placement="top"
+                            arrow
+                          >
+                            <Box
+                              sx={{
+                                width: 60,
+                                height: 40,
+                                borderRadius: "8px",
+                                overflow: "hidden",
+                                mx: "auto",
+                                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+                                border: "2px solid #e3f2fd",
+                                cursor: row.check_out_image_url
+                                  ? "pointer"
+                                  : "default",
+                                position: "relative",
+                                transition: "all 0.3s ease",
+                                "&:hover": row.check_out_image_url
+                                  ? {
+                                      transform: "scale(1.05)",
+                                      boxShadow:
+                                        "0 4px 16px rgba(0, 0, 0, 0.2)",
+                                      border: "2px solid #1e88e5",
+                                    }
+                                  : {},
+                              }}
+                              onClick={() =>
+                                row.check_out_image_url &&
+                                handleImageClick(
+                                  getImageUrl(row.check_out_image_url),
+                                  plate,
+                                  "checkout"
+                                )
+                              }
+                            >
+                              {row.check_out_image_url ? (
+                                <>
+                                  <img
+                                    src={getImageUrl(row.check_out_image_url)}
+                                    alt={`Check-out ${plate}`}
+                                    style={{
+                                      width: "100%",
+                                      height: "100%",
+                                      objectFit: "cover",
+                                    }}
+                                    onError={(e) => {
+                                      e.target.style.display = "none";
+                                      e.target.nextSibling.style.display =
+                                        "flex";
+                                    }}
+                                  />
+                                  <Box
+                                    sx={{
+                                      position: "absolute",
+                                      top: "50%",
+                                      left: "50%",
+                                      transform: "translate(-50%, -50%)",
+                                      backgroundColor: "rgba(0, 0, 0, 0.5)",
+                                      borderRadius: "50%",
+                                      width: "24px",
+                                      height: "24px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      opacity: 0,
+                                      transition: "opacity 0.3s ease",
+                                      "&:hover": {
+                                        opacity: 1,
+                                      },
+                                    }}
+                                  >
+                                    <ZoomInIcon
+                                      sx={{ color: "white", fontSize: "16px" }}
+                                    />
+                                  </Box>
+                                </>
+                              ) : null}
+                              <Box
+                                sx={{
+                                  width: "100%",
+                                  height: "100%",
+                                  display: row.check_out_image_url
+                                    ? "none"
+                                    : "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  backgroundColor: "#f5f5f5",
+                                  color: "#666",
+                                  fontSize: "12px",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                N/A
+                              </Box>
+                            </Box>
+                          </Tooltip>
+                        </TableCell>
+
                         <TableCell
                           align="center"
                           sx={{ fontWeight: 600, py: 2 }}
@@ -806,7 +1037,7 @@ export default function ParkingList() {
                               color: "text.primary",
                             }}
                           >
-                            {row.cardId || "N/A"}
+                            {row.card_id || "N/A"}
                           </Typography>
                         </TableCell>
                         <TableCell
@@ -816,19 +1047,56 @@ export default function ParkingList() {
                           {plate}
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
-                          {ticketType}
+                          <Chip
+                            icon={
+                              ticketType === "Vé lượt" ? (
+                                <DirectionsCarIcon
+                                  sx={{
+                                    fontSize: "14px !important",
+                                    color: "#e65100 !important",
+                                  }}
+                                />
+                              ) : (
+                                <ConfirmationNumberIcon
+                                  sx={{
+                                    fontSize: "14px !important",
+                                    color: "#7b1fa2 !important",
+                                  }}
+                                />
+                              )
+                            }
+                            label={ticketType}
+                            size="small"
+                            sx={{
+                              backgroundColor:
+                                ticketType === "Vé lượt"
+                                  ? "#fff3e0"
+                                  : "#f3e5f5",
+                              color:
+                                ticketType === "Vé lượt"
+                                  ? "#e65100"
+                                  : "#7b1fa2",
+                              fontWeight: 600,
+                              borderRadius: "8px",
+                              boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                              fontSize: "0.75rem",
+                              "& .MuiChip-icon": {
+                                marginLeft: "8px",
+                              },
+                            }}
+                          />
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
-                          {formatDate(row.timeStart)}
+                          {formatDate(row.check_in)}
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
-                          {formatDate(row.timeEnd)}
+                          {formatDate(row.check_out)}
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
-                          {calculateDuration(row.timeStart, row.timeEnd)}
+                          {calculateDuration(row.check_in, row.check_out)}
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
-                          {formatPrice(row.price, ticketType)}
+                          {formatPrice(invoiceAmount, ticketType)}
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
                           <Chip
@@ -935,20 +1203,47 @@ export default function ParkingList() {
 
             {/* Image */}
             {selectedImage && (
-              <motion.img
-                src={selectedImage.url}
-                alt={`Xe ${selectedImage.plate}`}
-                style={{
-                  maxWidth: "100vw",
-                  maxHeight: "100vh",
-                  width: "auto",
-                  height: "auto",
-                  objectFit: "contain",
-                }}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              />
+              <>
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: 24,
+                    left: 24,
+                    bgcolor: "rgba(0, 0, 0, 0.7)",
+                    color: "white",
+                    px: 3,
+                    py: 1.5,
+                    borderRadius: "12px",
+                    zIndex: 999,
+                    backdropFilter: "blur(10px)",
+                  }}
+                >
+                  <Typography variant="h6" fontWeight={700} sx={{ mb: 0.5 }}>
+                    {selectedImage.plate}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    {selectedImage.type === "checkin"
+                      ? "Check-in"
+                      : "Check-out"}
+                  </Typography>
+                </Box>
+                <motion.img
+                  src={selectedImage.url}
+                  alt={`${selectedImage.type} - ${selectedImage.plate}`}
+                  style={{
+                    maxWidth: "95vw",
+                    maxHeight: "95vh",
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                    borderRadius: "12px",
+                    boxShadow: "0 20px 60px rgba(0, 0, 0, 0.5)",
+                  }}
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                />
+              </>
             )}
           </DialogContent>
         </Dialog>

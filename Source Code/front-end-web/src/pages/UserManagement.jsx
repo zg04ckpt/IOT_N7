@@ -7,13 +7,6 @@ import {
   Card,
   CardContent,
   Button,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Typography,
-  Grid,
   Table,
   TableBody,
   TableCell,
@@ -21,93 +14,90 @@ import {
   TableHead,
   TableRow,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Typography,
+  Grid,
   Tooltip,
   Alert,
   TablePagination,
   InputAdornment,
+  IconButton,
+  CircularProgress,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  IconButton,
-  CircularProgress,
 } from "@mui/material";
 import { motion } from "framer-motion";
 import LoadingScreen from "../components/LoadingScreen";
 import AddIcon from "@mui/icons-material/Add";
-import ReceiptIcon from "@mui/icons-material/Receipt";
+import PersonIcon from "@mui/icons-material/Person";
 import WarningIcon from "@mui/icons-material/Warning";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SortIcon from "@mui/icons-material/Sort";
-import { CiTrash, CiEdit } from "react-icons/ci";
-
-import {
-  getAllMonthlyUsers,
-  createMonthlyCard,
-  updateMonthlyUser,
-  deleteMonthlyUser,
-} from "../api/monthlyCard";
-import { getAvailableCards } from "../api/card";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import { CiTrash } from "react-icons/ci";
+import { getAllUsers, createUser, deleteUser, getUserById } from "../api/user";
 import { useSnackbar } from "../contexts/SnackbarContext";
 
 const MotionCard = motion(Card);
 const MotionBox = motion(Box);
 
-export default function MonthlyTicket() {
+export default function UserManagement() {
   const { showSuccess, showError } = useSnackbar();
-  const [tickets, setTickets] = useState([]);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogType, setDialogType] = useState("add");
-  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [viewDialog, setViewDialog] = useState(false);
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState(false);
-  const [ticketToDelete, setTicketToDelete] = useState(null);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordIcon, setShowPasswordIcon] = useState(false);
 
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const [searchName, setSearchName] = useState("");
+  const [searchEmail, setSearchEmail] = useState("");
   const [searchPhone, setSearchPhone] = useState("");
-  const [searchLicensePlate, setSearchLicensePlate] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterRole, setFilterRole] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [availableCards, setAvailableCards] = useState([]);
 
   useEffect(() => {
-    const fetchTickets = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await getAllMonthlyUsers();
-        if (response.data.success) {
-          setTickets(response.data.data || []);
-        } else {
-          setError("Không thể tải dữ liệu vé tháng");
-        }
-      } catch (err) {
-        console.error("Error fetching monthly tickets:", err);
-        setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTickets();
+    fetchUsers();
   }, []);
 
-  const fetchAvailableCards = async () => {
+  const fetchUsers = async () => {
     try {
-      const response = await getAvailableCards();
-      console.log(response.data.data);
-      if (response.data.success) {
-        setAvailableCards(response.data.data || []);
+      setLoading(true);
+      setError(null);
+      // Fetch tất cả users với size lớn để filter ở frontend
+      const response = await getAllUsers(1, 1000);
+      if (response.success) {
+        const usersData = response.data || [];
+        setUsers(usersData);
+      } else {
+        setError("Không thể tải dữ liệu người dùng");
       }
     } catch (err) {
-      console.error("Error fetching available cards:", err);
+      console.error("Error fetching users:", err);
+      // Nếu là lỗi 403, để axios interceptor xử lý redirect
+      if (err.response?.status === 403) {
+        return;
+      }
+      setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -116,38 +106,29 @@ export default function MonthlyTicket() {
   };
 
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(Number.parseInt(event.target.value, 10));
+    const newRowsPerPage = Number.parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setPage(0);
   };
 
-  const filteredData = tickets
-    .filter((ticket) => {
-    const matchName = ticket.name
-      .toLowerCase()
-      .includes(searchName.toLowerCase());
-      const matchPhone = ticket.phoneNumber
-      .toLowerCase()
-      .includes(searchPhone.toLowerCase());
-    const matchLicensePlate = ticket.licensePlate
-      .toLowerCase()
-      .includes(searchLicensePlate.toLowerCase());
-
-      const now = new Date();
-      const startDate = new Date(ticket.createdAt);
-      const endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + 1);
-      const isActive = endDate > now;
-      const ticketStatus = isActive ? "Hoạt động" : "Hết hạn";
-
-    const matchStatus =
-        filterStatus === "all" || ticketStatus === filterStatus;
-    return matchName && matchPhone && matchLicensePlate && matchStatus;
+  // Filter data ở frontend
+  const filteredData = users
+    .filter((user) => {
+      const matchEmail = (user.email || "")
+        .toLowerCase()
+        .includes(searchEmail.toLowerCase());
+      const matchPhone = (user.phone || "")
+        .toLowerCase()
+        .includes(searchPhone.toLowerCase());
+      const matchRole =
+        filterRole === "all" || (user.role || "").toLowerCase() === filterRole;
+      return matchEmail && matchPhone && matchRole;
     })
     .sort((a, b) => {
-      const dateA = new Date(a.createdAt);
-      const dateB = new Date(b.createdAt);
+      const dateA = new Date(a.created_at || a.createdAt);
+      const dateB = new Date(b.created_at || b.createdAt);
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
-  });
+    });
 
   const paginatedData = filteredData.slice(
     page * rowsPerPage,
@@ -163,90 +144,82 @@ export default function MonthlyTicket() {
   } = useForm({
     mode: "onBlur",
     defaultValues: {
-      name: "",
-      phoneNumber: "",
-      licensePlate: "",
-      cardId: "",
+      email: "",
+      password: "",
+      phone: "",
+      role: "user",
     },
   });
 
-  const handleOpenDialog = async (type, ticket = null) => {
-    setDialogType(type);
-    setSelectedTicket(ticket);
-
-    if (type === "add") {
-      await fetchAvailableCards();
-    }
-
-    if (ticket) {
-      reset({
-        name: ticket.name,
-        phoneNumber: ticket.phoneNumber,
-        licensePlate: ticket.licensePlate,
-        cardId: ticket.cardId || "",
-      });
-    } else {
+  const handleOpenDialog = () => {
+    setDialogType("add");
+    setSelectedUser(null);
+    setShowPassword(false);
+    setShowPasswordIcon(false);
     reset({
-      name: "",
-        phoneNumber: "",
-      licensePlate: "",
-        cardId: "",
+      email: "",
+      password: "",
+      phone: "",
+      role: "user",
     });
-    }
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
+    setShowPassword(false);
+    setShowPasswordIcon(false);
     reset();
   };
 
-  const handleSaveTicket = async (formData) => {
+  const handleViewUser = async (id) => {
     try {
       setRefreshing(true);
-      setError(null);
-      let response;
-      if (dialogType === "add") {
-        response = await createMonthlyCard({
-      name: formData.name,
-          phoneNumber: formData.phoneNumber,
-      licensePlate: formData.licensePlate,
-          cardId: formData.cardId,
-          price: 500000,
-        });
-      } else if (dialogType === "edit") {
-        response = await updateMonthlyUser(
-          {
-            name: formData.name,
-            phoneNumber: formData.phoneNumber,
-            licensePlate: formData.licensePlate,
-          },
-          selectedTicket.id
-        );
-      }
-
-      if (response && response.data.success) {
-        const ticketsResponse = await getAllMonthlyUsers();
-        if (ticketsResponse.data.success) {
-          setTickets(ticketsResponse.data.data || []);
-        }
-    handleCloseDialog();
-        showSuccess(
-          dialogType === "add"
-            ? "Đăng ký vé tháng thành công!"
-            : "Cập nhật vé tháng thành công!"
-        );
+      const response = await getUserById(id);
+      if (response.success) {
+        setSelectedUser(response.data);
+        setViewDialog(true);
+      } else {
+        showError("Không thể tải thông tin người dùng");
       }
     } catch (error) {
-      console.error("Error saving ticket:", error);
-      showError("Không thể lưu vé tháng. Vui lòng thử lại.");
+      console.error("Error fetching user:", error);
+      showError("Không thể tải thông tin người dùng. Vui lòng thử lại.");
     } finally {
       setRefreshing(false);
     }
   };
 
-  const handleDeleteTicket = (id) => {
-    setTicketToDelete(id);
+  const handleSaveUser = async (formData) => {
+    try {
+      setRefreshing(true);
+      setError(null);
+
+      const response = await createUser({
+        email: formData.email.trim(),
+        password: formData.password,
+        phone: formData.phone.trim(),
+        role: formData.role,
+      });
+
+      if (response.success) {
+        await fetchUsers();
+        handleCloseDialog();
+        showSuccess("Tạo người dùng thành công!");
+      }
+    } catch (error) {
+      console.error("Error creating user:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        "Không thể tạo người dùng. Vui lòng thử lại.";
+      showError(errorMessage);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleDeleteClick = (id) => {
+    setUserToDelete(id);
     setDeleteConfirmDialog(true);
   };
 
@@ -254,19 +227,19 @@ export default function MonthlyTicket() {
     try {
       setRefreshing(true);
       setError(null);
-      const response = await deleteMonthlyUser(ticketToDelete);
-      if (response.data.success) {
-        const ticketsResponse = await getAllMonthlyUsers();
-        if (ticketsResponse.data.success) {
-          setTickets(ticketsResponse.data.data || []);
-        }
-    setDeleteConfirmDialog(false);
-    setTicketToDelete(null);
-        showSuccess("Xóa vé tháng thành công!");
+      const response = await deleteUser(userToDelete);
+      if (response.success) {
+        await fetchUsers();
+        setDeleteConfirmDialog(false);
+        setUserToDelete(null);
+        showSuccess("Xóa người dùng thành công!");
       }
     } catch (error) {
-      console.error("Error deleting ticket:", error);
-      showError("Không thể xóa vé tháng. Vui lòng thử lại.");
+      console.error("Error deleting user:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        "Không thể xóa người dùng. Vui lòng thử lại.";
+      showError(errorMessage);
     } finally {
       setRefreshing(false);
     }
@@ -276,20 +249,20 @@ export default function MonthlyTicket() {
     try {
       setRefreshing(true);
       setError(null);
-      const response = await getAllMonthlyUsers();
-      if (response.data.success) {
-        setTickets(response.data.data || []);
-        setSearchName("");
-        setSearchPhone("");
-        setSearchLicensePlate("");
-        setFilterStatus("all");
-        setPage(0);
+      const response = await getAllUsers(1, 1000);
+      if (response.success) {
+        const usersData = response.data || [];
+        setUsers(usersData);
       } else {
-        setError("Không thể tải dữ liệu vé tháng");
+        showError("Không thể tải dữ liệu người dùng");
       }
     } catch (err) {
-      console.error("Error refreshing tickets:", err);
-      setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
+      console.error("Error refreshing users:", err);
+      // Nếu là lỗi 403, để axios interceptor xử lý redirect
+      if (err.response?.status === 403) {
+        return;
+      }
+      showError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
     } finally {
       setRefreshing(false);
     }
@@ -300,7 +273,7 @@ export default function MonthlyTicket() {
   };
 
   if (loading) {
-    return <LoadingScreen message="Đang tải dữ liệu vé tháng..." />;
+    return <LoadingScreen message="Đang tải dữ liệu người dùng..." />;
   }
 
   if (error) {
@@ -344,17 +317,17 @@ export default function MonthlyTicket() {
             variant="h2"
             sx={{ mb: 1, fontSize: { xs: "1.8rem", sm: "2.5rem" } }}
           >
-            Đăng ký vé tháng
+            Quản lý người dùng
           </Typography>
           <Typography color="textSecondary">
-            Quản lý vé tháng của khách hàng
+            Quản lý tài khoản người dùng trong hệ thống
           </Typography>
         </Box>
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog("add")}
+            onClick={handleOpenDialog}
             sx={{
               background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
               borderRadius: "10px",
@@ -371,7 +344,7 @@ export default function MonthlyTicket() {
               },
             }}
           >
-            Đăng ký vé tháng
+            Tạo mới
           </Button>
         </motion.div>
       </MotionBox>
@@ -380,39 +353,30 @@ export default function MonthlyTicket() {
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {[
           {
-            label: "Tổng vé tháng",
-            value: tickets.length,
+            label: "Tổng người dùng",
+            value: users.length,
             color: "#1e88e5",
             delay: 0.1,
           },
           {
-            label: "Hoạt động",
-            value: tickets.filter((t) => {
-              const now = new Date();
-              const startDate = new Date(t.createdAt);
-              const endDate = new Date(startDate);
-              endDate.setMonth(endDate.getMonth() + 1);
-              return endDate > now;
-            }).length,
-            color: "#4caf50",
+            label: "Quản trị viên",
+            value: users.filter((u) => (u.role || "").toLowerCase() === "admin")
+              .length,
+            color: "#7b1fa2",
             delay: 0.2,
           },
           {
-            label: "Hết hạn",
-            value: tickets.filter((t) => {
-              const now = new Date();
-              const startDate = new Date(t.createdAt);
-              const endDate = new Date(startDate);
-              endDate.setMonth(endDate.getMonth() + 1);
-              return endDate <= now;
-            }).length,
-            color: "#f44336",
+            label: "Bảo vệ",
+            value: users.filter((u) => (u.role || "").toLowerCase() === "guard")
+              .length,
+            color: "#1976d2",
             delay: 0.3,
           },
           {
-            label: "Doanh thu",
-            value: `${(tickets.length * 500).toLocaleString("vi-VN")}K`,
-            color: "#ff9800",
+            label: "Người dùng",
+            value: users.filter((u) => (u.role || "").toLowerCase() === "user")
+              .length,
+            color: "#4caf50",
             delay: 0.4,
           },
         ].map((stat, idx) => (
@@ -453,7 +417,7 @@ export default function MonthlyTicket() {
                       {stat.value}
                     </Typography>
                   </Box>
-                  <ReceiptIcon
+                  <PersonIcon
                     sx={{ color: stat.color, opacity: 0.3, fontSize: 32 }}
                   />
                 </Box>
@@ -471,17 +435,17 @@ export default function MonthlyTicket() {
         sx={{ mb: 3, boxShadow: "0 2px 8px rgba(0, 0, 0, 0.08)" }}
       >
         <CardContent>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid item xs={12} sm={6} md={4}>
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
                 <TextField
                   fullWidth
-                  placeholder="Tìm kiếm tên khách hàng..."
-                  value={searchName}
-                  onChange={(e) => setSearchName(e.target.value)}
+                  placeholder="Tìm kiếm email..."
+                  value={searchEmail}
+                  onChange={(e) => setSearchEmail(e.target.value)}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -536,51 +500,22 @@ export default function MonthlyTicket() {
                 />
               </motion.div>
             </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
-                <TextField
-                  fullWidth
-                  placeholder="Tìm kiếm biển số xe..."
-                  value={searchLicensePlate}
-                  onChange={(e) => setSearchLicensePlate(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon sx={{ color: "text.secondary" }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      borderRadius: "10px",
-                      transition: "all 0.3s",
-                      "&:hover": {
-                        boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                      },
-                      "&.Mui-focused": {
-                        boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                      },
-                    },
-                  }}
-                />
-              </motion.div>
-            </Grid>
             <Grid item xs={12} sm={6} md={2}>
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
                 <FormControl fullWidth>
-                  <InputLabel id="status-select-label">Trạng thái</InputLabel>
+                  <InputLabel id="role-select-label">Vai trò</InputLabel>
                   <Select
-                    labelId="status-select-label"
-                    id="status-select"
-                    value={filterStatus}
-                    label="Trạng thái"
-                    onChange={(e) => setFilterStatus(e.target.value)}
+                    labelId="role-select-label"
+                    id="role-select"
+                    value={filterRole}
+                    label="Vai trò"
+                    onChange={(e) => {
+                      setFilterRole(e.target.value);
+                      setPage(0);
+                    }}
                     sx={{
                       borderRadius: "10px",
                       transition: "all 0.3s",
@@ -596,13 +531,14 @@ export default function MonthlyTicket() {
                     }}
                   >
                     <MenuItem value="all">Tất cả</MenuItem>
-                    <MenuItem value="Hoạt động">Hoạt động</MenuItem>
-                    <MenuItem value="Hết hạn">Hết hạn</MenuItem>
+                    <MenuItem value="admin">Quản trị viên</MenuItem>
+                    <MenuItem value="guard">Bảo vệ</MenuItem>
+                    <MenuItem value="user">Người dùng</MenuItem>
                   </Select>
                 </FormControl>
               </motion.div>
             </Grid>
-            <Grid item xs={12} sm={6} md={1}>
+            <Grid item xs={6} sm={3} md={1}>
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -636,7 +572,7 @@ export default function MonthlyTicket() {
                 </Tooltip>
               </motion.div>
             </Grid>
-            <Grid item xs={12} sm={6} md={1}>
+            <Grid item xs={6} sm={3} md={2}>
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -702,7 +638,7 @@ export default function MonthlyTicket() {
             </Box>
           )}
           <TableContainer>
-            <Table>
+            <Table sx={{ tableLayout: "fixed" }}>
               <TableHead>
                 <TableRow
                   sx={{
@@ -713,136 +649,161 @@ export default function MonthlyTicket() {
                 >
                   <TableCell
                     align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.primary",
+                      width: "20%",
+                    }}
                   >
-                    Tên khách hàng
+                    Email
                   </TableCell>
                   <TableCell
                     align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.primary",
+                      width: "15%",
+                    }}
                   >
                     Số điện thoại
                   </TableCell>
                   <TableCell
                     align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.primary",
+                      width: "15%",
+                    }}
                   >
                     Biển số xe
                   </TableCell>
                   <TableCell
                     align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.primary",
+                      width: "20%",
+                    }}
                   >
-                    ID thẻ
+                    Vai trò
                   </TableCell>
                   <TableCell
                     align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
-                  >
-                    Giá tiền
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
-                  >
-                    Ngày bắt đầu
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
-                  >
-                    Ngày kết thúc
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
-                  >
-                    Trạng thái
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{ fontWeight: 700, color: "text.primary" }}
+                    sx={{
+                      fontWeight: 700,
+                      color: "text.primary",
+                      width: "30%",
+                    }}
                   >
                     Hành động
                   </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {paginatedData.map((ticket, index) => (
+                {paginatedData.map((user, index) => (
                   <motion.tr
-                    key={ticket.id}
+                    key={user.id}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.6 + index * 0.05, duration: 0.3 }}
                   >
-                    <TableCell align="center" sx={{ py: 2 }}>
-                      {ticket.name}
+                    <TableCell
+                      align="center"
+                      sx={{
+                        fontWeight: 600,
+                        py: 2,
+                        width: "20%",
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 600,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {user.email || "N/A"}
+                      </Typography>
                     </TableCell>
-                    <TableCell align="center" sx={{ py: 2 }}>
-                      {ticket.phoneNumber}
+                    <TableCell
+                      align="center"
+                      sx={{
+                        py: 2,
+                        width: "15%",
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 600,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {user.phone || "N/A"}
+                      </Typography>
                     </TableCell>
-                    <TableCell align="center" sx={{ py: 2, fontWeight: 600 }}>
-                      {ticket.licensePlate}
+                    <TableCell
+                      align="center"
+                      sx={{
+                        py: 2,
+                        width: "15%",
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 600,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {user.plate || "N/A"}
+                      </Typography>
                     </TableCell>
-                    <TableCell align="center" sx={{ py: 2, fontWeight: 600 }}>
-                      {ticket.cardId}
-                    </TableCell>
-                    <TableCell align="center" sx={{ py: 2, fontWeight: 600 }}>
-                      500,000 VND
-                    </TableCell>
-                    <TableCell align="center" sx={{ py: 2 }}>
-                      {new Date(ticket.createdAt).toLocaleDateString("vi-VN")}
-                    </TableCell>
-                    <TableCell align="center" sx={{ py: 2 }}>
-                      {(() => {
-                        const startDate = new Date(ticket.createdAt);
-                        const endDate = new Date(startDate);
-                        endDate.setMonth(endDate.getMonth() + 1);
-                        return endDate.toLocaleDateString("vi-VN");
-                      })()}
-                    </TableCell>
-                    <TableCell align="center" sx={{ py: 2 }}>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        py: 2,
+                        width: "15%",
+                      }}
+                    >
                       <motion.div whileHover={{ scale: 1.05 }}>
                         <Chip
-                          label={(() => {
-                            const now = new Date();
-                            const startDate = new Date(ticket.createdAt);
-                            const endDate = new Date(startDate);
-                            endDate.setMonth(endDate.getMonth() + 1);
-                            return endDate > now ? "Hoạt động" : "Hết hạn";
-                          })()}
-                          color={(() => {
-                            const now = new Date();
-                            const startDate = new Date(ticket.createdAt);
-                            const endDate = new Date(startDate);
-                            endDate.setMonth(endDate.getMonth() + 1);
-                            return endDate > now ? "success" : "error";
-                          })()}
+                          label={
+                            (user.role || "").toLowerCase() === "admin"
+                              ? "Quản trị viên"
+                              : (user.role || "").toLowerCase() === "guard"
+                              ? "Bảo vệ"
+                              : "Người dùng"
+                          }
                           size="small"
                           sx={{
-                            backgroundColor: (() => {
-                              const now = new Date();
-                              const startDate = new Date(ticket.createdAt);
-                              const endDate = new Date(startDate);
-                              endDate.setMonth(endDate.getMonth() + 1);
-                              return endDate > now ? "#dbfde5" : "#fddbdb";
-                            })(),
-                            color: (() => {
-                              const now = new Date();
-                              const startDate = new Date(ticket.createdAt);
-                              const endDate = new Date(startDate);
-                              endDate.setMonth(endDate.getMonth() + 1);
-                              return endDate > now ? "#036333" : "#ef4444";
-                            })(),
-                            width: "100%",
+                            backgroundColor:
+                              (user.role || "").toLowerCase() === "admin"
+                                ? "#f3e5f5"
+                                : (user.role || "").toLowerCase() === "guard"
+                                ? "#e3f2fd"
+                                : "#e8f5e9",
+                            color:
+                              (user.role || "").toLowerCase() === "admin"
+                                ? "#7b1fa2"
+                                : (user.role || "").toLowerCase() === "guard"
+                                ? "#1976d2"
+                                : "#2e7d32",
                             fontWeight: 600,
                             borderRadius: "8px",
                             boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
+                            fontSize: "0.75rem",
                           }}
                         />
                       </motion.div>
                     </TableCell>
-                    <TableCell align="center" sx={{ py: 2 }}>
+                    <TableCell
+                      align="center"
+                      sx={{
+                        py: 2,
+                        width: "30%",
+                      }}
+                    >
                       <Box
                         sx={{
                           display: "flex",
@@ -855,56 +816,29 @@ export default function MonthlyTicket() {
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                         >
-                          <Tooltip title="Chỉnh sửa">
+                          <Tooltip title="Xóa">
                             <Button
                               size="small"
-                              startIcon={<CiEdit />}
-                              onClick={() => handleOpenDialog("edit", ticket)}
+                              startIcon={<CiTrash />}
+                              color="error"
+                              onClick={() => handleDeleteClick(user.id)}
                               sx={{
                                 borderRadius: "8px",
                                 textTransform: "none",
                                 fontWeight: 600,
-                                color: "#ff9800",
                                 fontSize: "0.75rem",
                                 px: 1.5,
                                 py: 0.5,
                                 transition: "all 0.3s",
                                 "&:hover": {
-                                  bgcolor: "rgba(255, 152, 0, 0.1)",
+                                  bgcolor: "rgba(244, 67, 54, 0.1)",
                                 },
                               }}
                             >
-                              Sửa
+                              Xóa
                             </Button>
                           </Tooltip>
                         </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <Tooltip title="Xóa vé tháng">
-                          <Button
-                            size="small"
-                            startIcon={<CiTrash />}
-                            color="error"
-                            onClick={() => handleDeleteTicket(ticket.id)}
-                            sx={{
-                              borderRadius: "8px",
-                              textTransform: "none",
-                              fontWeight: 600,
-                                fontSize: "0.75rem",
-                                px: 1.5,
-                                py: 0.5,
-                              transition: "all 0.3s",
-                              "&:hover": {
-                                bgcolor: "rgba(244, 67, 54, 0.1)",
-                              },
-                            }}
-                          >
-                            Xóa
-                          </Button>
-                        </Tooltip>
-                      </motion.div>
                       </Box>
                     </TableCell>
                   </motion.tr>
@@ -913,7 +847,7 @@ export default function MonthlyTicket() {
             </Table>
           </TableContainer>
           <TablePagination
-            rowsPerPageOptions={[5, 10, 25]}
+            rowsPerPageOptions={[5, 10, 25, 50]}
             component="div"
             count={filteredData.length}
             rowsPerPage={rowsPerPage}
@@ -939,7 +873,7 @@ export default function MonthlyTicket() {
         </CardContent>
       </MotionCard>
 
-      {/* Dialog */}
+      {/* Create Dialog */}
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}
@@ -947,33 +881,40 @@ export default function MonthlyTicket() {
         fullWidth
       >
         <DialogTitle sx={{ fontWeight: 700, fontSize: "1.2rem" }}>
-          {dialogType === "add" ? "Đăng ký vé tháng mới" : "Chỉnh sửa vé tháng"}
+          Tạo người dùng mới
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
-          <form onSubmit={handleSubmit(handleSaveTicket)}>
+          <form onSubmit={handleSubmit(handleSaveUser)}>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <Controller
-                name="name"
+                name="email"
                 control={control}
-                rules={{ required: "Tên khách hàng không được để trống" }}
+                rules={{
+                  required: "Email không được để trống",
+                  pattern: {
+                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                    message: "Email không hợp lệ",
+                  },
+                }}
                 render={({ field, fieldState: { error } }) => (
                   <motion.div
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: "spring", stiffness: 300 }}
+                    style={{ marginTop: "10px" }}
                   >
                     <TextField
                       {...field}
                       fullWidth
-                      label="Tên khách hàng"
+                      label="Email"
+                      type="email"
                       error={!!error}
                       helperText={error?.message}
                       onChange={(e) => {
                         field.onChange(e);
-                        trigger("name");
+                        trigger("email");
                       }}
-                      onBlur={() => trigger("name")}
+                      onBlur={() => trigger("email")}
                       sx={{
-                        marginTop: "10px",
                         "& .MuiOutlinedInput-root": {
                           borderRadius: "10px",
                           transition: "all 0.3s",
@@ -990,118 +931,94 @@ export default function MonthlyTicket() {
                 )}
               />
               <Controller
-                name="cardId"
+                name="password"
                 control={control}
-                rules={{ required: "ID thẻ không được để trống" }}
+                rules={{
+                  required: "Mật khẩu không được để trống",
+                  validate: (value) => {
+                    if (!value || value.trim() === "") {
+                      return "Mật khẩu không được để trống";
+                    }
+                    return true;
+                  },
+                }}
                 render={({ field, fieldState: { error } }) => (
                   <motion.div
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: "spring", stiffness: 300 }}
                   >
-                    <FormControl fullWidth error={!!error}>
-                      <InputLabel id="card-select-label">ID thẻ</InputLabel>
-                      <Select
-                        labelId="card-select-label"
-                        id="card-select"
-                        {...field}
-                        label="ID thẻ"
-                        disabled={dialogType === "edit"}
-                        onChange={(e) => {
-                          field.onChange(e);
-                          trigger("cardId");
-                        }}
-                        onBlur={() => trigger("cardId")}
-                        sx={{
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "& .MuiOutlinedInput-root": {
-                            transition: "all 0.3s",
-                            "&:hover": {
-                              boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                            },
-                            "&.Mui-focused": {
-                              boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                            },
-                          },
-                          "& .MuiInputBase-input.Mui-disabled": {
-                            WebkitTextFillColor: "rgba(0, 0, 0, 0.6)",
-                          },
-                        }}
-                      >
-                        {dialogType === "add" ? (
-                          availableCards.length > 0 ? (
-                            availableCards.map((card) => (
-                              <MenuItem key={card.id} value={card.id}>
-                                <Box
-                                  sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 1,
-                                  }}
-                                >
-                                  <Typography
-                                    variant="body2"
-                                    sx={{ fontWeight: 600 }}
-                                  >
-                                    ID: {card.id}
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    color="textSecondary"
-                                  >
-                                    - {card.cardNumber}
-                                  </Typography>
-                                </Box>
-                              </MenuItem>
-                            ))
-                          ) : (
-                            <MenuItem disabled>
-                              <Typography color="textSecondary">
-                                Không có thẻ rảnh
-                              </Typography>
-                            </MenuItem>
-                          )
-                        ) : (
-                          <MenuItem value={field.value}>
-                            <Box
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label="Mật khẩu"
+                      type={showPassword ? "text" : "password"}
+                      error={!!error}
+                      helperText={error?.message}
+                      onInput={(e) => {
+                        const value = e.target.value.trim();
+                        setShowPasswordIcon(value !== "");
+                      }}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        const value = e.target.value.trim();
+                        setShowPasswordIcon(value !== "");
+                        trigger("password");
+                      }}
+                      onBlur={() => trigger("password")}
+                      InputProps={{
+                        endAdornment: showPasswordIcon ? (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => setShowPassword(!showPassword)}
+                              edge="end"
                               sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 1,
+                                color: "text.secondary",
+                                "&:hover": {
+                                  color: "primary.main",
+                                },
                               }}
                             >
-                              <Typography
-                                variant="body2"
-                                sx={{ fontWeight: 600 }}
-                              >
-                                ID: {field.value}
-                              </Typography>
-                            </Box>
-                          </MenuItem>
-                        )}
-                      </Select>
-                      {error && (
-                        <Typography
-                          variant="caption"
-                          color="error"
-                          sx={{ mt: 0.5, ml: 1.5 }}
-                        >
-                          {error.message}
-                        </Typography>
-                      )}
-                    </FormControl>
+                              {showPassword ? (
+                                <VisibilityOffIcon />
+                              ) : (
+                                <VisibilityIcon />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ) : null,
+                      }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: "10px",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
+                          },
+                          "&.Mui-focused": {
+                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
+                          },
+                        },
+                      }}
+                    />
                   </motion.div>
                 )}
               />
               <Controller
-                name="phoneNumber"
+                name="phone"
                 control={control}
                 rules={{
                   required: "Số điện thoại không được để trống",
-                  pattern: {
-                    value: /^0\d{9}$/,
-                    message:
-                      "Số điện thoại không hợp lệ (phải bắt đầu bằng 0 và có 10 chữ số)",
+                  validate: (value) => {
+                    if (!value || value.trim() === "") {
+                      return "Số điện thoại không được để trống";
+                    }
+                    if (value.trim().length > 15) {
+                      return "Số điện thoại không được quá 15 ký tự";
+                    }
+                    if (!/^[0-9]+$/.test(value.trim())) {
+                      return "Số điện thoại chỉ được chứa số";
+                    }
+                    return true;
                   },
                 }}
                 render={({ field, fieldState: { error } }) => (
@@ -1117,9 +1034,9 @@ export default function MonthlyTicket() {
                       helperText={error?.message}
                       onChange={(e) => {
                         field.onChange(e);
-                        trigger("phoneNumber");
+                        trigger("phone");
                       }}
-                      onBlur={() => trigger("phoneNumber")}
+                      onBlur={() => trigger("phone")}
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: "10px",
@@ -1137,80 +1054,69 @@ export default function MonthlyTicket() {
                 )}
               />
               <Controller
-                name="licensePlate"
+                name="role"
                 control={control}
-                rules={{ required: "Biển số xe không được để trống" }}
+                rules={{
+                  required: "Vai trò không được để trống",
+                  validate: (value) => {
+                    const validRoles = ["user", "guard", "admin"];
+                    if (!value) {
+                      return "Vai trò không được để trống";
+                    }
+                    if (!validRoles.includes(value)) {
+                      return "Vai trò không hợp lệ";
+                    }
+                    return true;
+                  },
+                }}
                 render={({ field, fieldState: { error } }) => (
                   <motion.div
                     whileHover={{ scale: 1.02 }}
                     transition={{ type: "spring", stiffness: 300 }}
                   >
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Biển số xe"
-                      error={!!error}
-                      helperText={error?.message}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        trigger("licensePlate");
-                      }}
-                      onBlur={() => trigger("licensePlate")}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
+                    <FormControl fullWidth error={!!error}>
+                      <InputLabel id="role-select-label">Vai trò</InputLabel>
+                      <Select
+                        labelId="role-select-label"
+                        id="role-select"
+                        {...field}
+                        label="Vai trò"
+                        onChange={(e) => {
+                          field.onChange(e);
+                          trigger("role");
+                        }}
+                        onBlur={() => trigger("role")}
+                        sx={{
                           borderRadius: "10px",
                           transition: "all 0.3s",
-                          "&:hover": {
-                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
+                          "& .MuiOutlinedInput-root": {
+                            transition: "all 0.3s",
+                            "&:hover": {
+                              boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
+                            },
+                            "&.Mui-focused": {
+                              boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
+                            },
                           },
-                          "&.Mui-focused": {
-                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                          },
-                        },
-                      }}
-                    />
+                        }}
+                      >
+                        <MenuItem value="user">Người dùng</MenuItem>
+                        <MenuItem value="guard">Bảo vệ</MenuItem>
+                        <MenuItem value="admin">Quản trị viên</MenuItem>
+                      </Select>
+                      {error && (
+                        <Typography
+                          variant="caption"
+                          color="error"
+                          sx={{ mt: 0.5, ml: 1.5 }}
+                        >
+                          {error.message}
+                        </Typography>
+                      )}
+                    </FormControl>
                   </motion.div>
                 )}
               />
-              <Box
-                sx={{
-                  p: 2,
-                  bgcolor: "rgba(30, 136, 229, 0.1)",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(30, 136, 229, 0.2)",
-                }}
-              >
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  <strong>Giá tiền:</strong> 500,000 VND
-                </Typography>
-                <Typography variant="body2">
-                  {dialogType === "add" ? (
-                    <>
-                  <strong>Thời hạn:</strong> 30 ngày
-                    </>
-                  ) : (
-                    <>
-                      <strong>Số ngày còn lại:</strong>{" "}
-                      {(() => {
-                        if (selectedTicket) {
-                          const now = new Date();
-                          const startDate = new Date(selectedTicket.createdAt);
-                          const endDate = new Date(startDate);
-                          endDate.setMonth(endDate.getMonth() + 1);
-                          const diffTime = endDate - now;
-                          const diffDays = Math.ceil(
-                            diffTime / (1000 * 60 * 60 * 24)
-                          );
-                          return diffDays > 0
-                            ? `${diffDays} ngày`
-                            : "Đã hết hạn";
-                        }
-                        return "30 ngày";
-                      })()}
-                    </>
-                  )}
-                </Typography>
-              </Box>
             </Box>
           </form>
         </DialogContent>
@@ -1220,9 +1126,9 @@ export default function MonthlyTicket() {
           </Button>
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
-              onClick={handleSubmit(handleSaveTicket)}
+              onClick={handleSubmit(handleSaveUser)}
               variant="contained"
-              disabled={!isValid}
+              disabled={!isValid || refreshing}
               sx={{
                 background: isValid
                   ? "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)"
@@ -1235,12 +1141,112 @@ export default function MonthlyTicket() {
                 },
               }}
             >
-              {dialogType === "add" ? "Đăng ký" : "Cập nhật"}
+              {refreshing ? "Đang tạo..." : "Tạo mới"}
             </Button>
           </motion.div>
         </DialogActions>
       </Dialog>
 
+      {/* View Dialog */}
+      <Dialog
+        open={viewDialog}
+        onClose={() => setViewDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 700, fontSize: "1.2rem" }}>
+          Thông tin người dùng
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          {selectedUser && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Box>
+                <Typography
+                  variant="caption"
+                  color="textSecondary"
+                  sx={{ fontSize: "0.75rem" }}
+                >
+                  Email
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
+                  {selectedUser.email || "N/A"}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography
+                  variant="caption"
+                  color="textSecondary"
+                  sx={{ fontSize: "0.75rem" }}
+                >
+                  Số điện thoại
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
+                  {selectedUser.phone || "N/A"}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography
+                  variant="caption"
+                  color="textSecondary"
+                  sx={{ fontSize: "0.75rem" }}
+                >
+                  Biển số xe
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600, mt: 0.5 }}>
+                  {selectedUser.plate || "N/A"}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography
+                  variant="caption"
+                  color="textSecondary"
+                  sx={{ fontSize: "0.75rem" }}
+                >
+                  Vai trò
+                </Typography>
+                <Box sx={{ mt: 0.5 }}>
+                  <Chip
+                    label={
+                      (selectedUser.role || "").toLowerCase() === "admin"
+                        ? "Quản trị viên"
+                        : (selectedUser.role || "").toLowerCase() === "guard"
+                        ? "Bảo vệ"
+                        : "Người dùng"
+                    }
+                    size="small"
+                    sx={{
+                      backgroundColor:
+                        (selectedUser.role || "").toLowerCase() === "admin"
+                          ? "#f3e5f5"
+                          : (selectedUser.role || "").toLowerCase() === "guard"
+                          ? "#e3f2fd"
+                          : "#e8f5e9",
+                      color:
+                        (selectedUser.role || "").toLowerCase() === "admin"
+                          ? "#7b1fa2"
+                          : (selectedUser.role || "").toLowerCase() === "guard"
+                          ? "#1976d2"
+                          : "#2e7d32",
+                      fontWeight: 600,
+                      borderRadius: "8px",
+                    }}
+                  />
+                </Box>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setViewDialog(false)}
+            sx={{ textTransform: "none" }}
+          >
+            Đóng
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
       <Dialog
         open={deleteConfirmDialog}
         onClose={() => setDeleteConfirmDialog(false)}
@@ -1265,13 +1271,13 @@ export default function MonthlyTicket() {
           </DialogTitle>
           <DialogContent>
             <Alert severity="warning" sx={{ mb: 2 }}>
-              Bạn có chắc chắn muốn xóa vé tháng này không? Hành động này không
-              thể hoàn tác.
+              Bạn có chắc chắn muốn xóa người dùng này không? Hành động này
+              không thể hoàn tác.
             </Alert>
             <Typography color="textSecondary">
-              Khách hàng:{" "}
+              Người dùng:{" "}
               <strong>
-                {tickets.find((t) => t.id === ticketToDelete)?.name}
+                {users.find((u) => u.id === userToDelete)?.email || "N/A"}
               </strong>
             </Typography>
           </DialogContent>
@@ -1287,12 +1293,13 @@ export default function MonthlyTicket() {
                 onClick={handleConfirmDelete}
                 variant="contained"
                 color="error"
+                disabled={refreshing}
                 sx={{
                   textTransform: "none",
                   fontWeight: 600,
                 }}
               >
-                Xóa
+                {refreshing ? "Đang xóa..." : "Xóa"}
               </Button>
             </motion.div>
           </DialogActions>

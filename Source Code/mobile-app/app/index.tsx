@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,70 +11,167 @@ import {
   Dimensions,
   ActivityIndicator,
   Image,
+  Modal,
+  Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   FadeInDown,
   FadeInUp,
-  BounceIn,
+  FadeIn,
 } from "react-native-reanimated";
-import { getVehicleInfoByLicensePlate } from "@/api/vehicle";
-import { VehicleInfo } from "@/types/vehicle";
-import { ApiResponse } from "@/utils/ApiResponse";
+import { useRouter } from "expo-router";
+import { useAuth } from "@/contexts/AuthContext";
+import { getUserProfile } from "@/api/user";
+import { getInvoiceBySessionId, ParkingSession } from "@/api/session";
+import { getCardById, Card } from "@/api/card";
 import {
-  formatTimeElapsed,
-  formatTimeElapsedDetailed,
+  formatDateTime,
   formatCurrency,
-  formatDate,
-  getCardTypeText,
-  getStatusColor,
+  calculateDuration,
+  calculateDaysRemaining,
+  formatDaysRemaining,
 } from "@/utils/helpers";
-import { VehicleImage } from "@/components/VehicleImage";
+import { useSnackbar } from "@/contexts/SnackbarContext";
 
 const { width } = Dimensions.get("window");
+const BASE_URL = "http://10.0.2.2:4000";
+
+// Helper function to get full image URL
+const getImageUrl = (imageUrl: string | null | undefined): string | null => {
+  if (!imageUrl) return null;
+  // If URL is already absolute (starts with http:// or https://), use it directly
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+    return imageUrl;
+  }
+  // Otherwise, prepend BASE_URL for relative paths
+  return `${BASE_URL}${imageUrl}`;
+};
 
 export default function HomeScreen() {
-  const [licensePlate, setLicensePlate] = useState("");
-  const [parkingData, setParkingData] = useState<VehicleInfo | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const { showError } = useSnackbar();
+  const [sessions, setSessions] = useState<ParkingSession[]>([]);
+  const [invoices, setInvoices] = useState<{ [key: number]: number }>({});
+  const [cards, setCards] = useState<{ [key: number]: Card }>({});
+  const [loading, setLoading] = useState(true);
+  const [loadingInvoices, setLoadingInvoices] = useState<{
+    [key: number]: boolean;
+  }>({});
+  const [loadingCards, setLoadingCards] = useState<{
+    [key: number]: boolean;
+  }>({});
   const [error, setError] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{
+    url: string;
+    plate: string;
+    type: string;
+  } | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  const handleLicensePlateChange = (text: string) => {
-    setLicensePlate(text);
-    if (searched) {
-      setSearched(false);
-      setParkingData(null);
-      setError(null);
-    }
-  };
+  useEffect(() => {
+    fetchSessions();
+  }, [user]);
 
-  const handleSearch = async () => {
-    if (!licensePlate.trim()) return;
-
-    setLoading(true);
-    setSearched(false);
-    setError(null);
-    setParkingData(null);
-
+  const fetchSessions = async () => {
     try {
-      const response: ApiResponse<VehicleInfo[]> =
-        await getVehicleInfoByLicensePlate(licensePlate.toUpperCase());
+      setLoading(true);
+      setError(null);
+      const response = await getUserProfile();
+      if (response.success) {
+        const parkingSessions = response.data.parking_sessions || [];
+        setSessions(parkingSessions);
 
-      if (response.success && response.data && response.data.length > 0) {
-        setParkingData(response.data[0]);
-        setSearched(true);
+        // Fetch invoices for all completed sessions (must have status "end", check_out, and check_out_image_url)
+        const completedSessions = parkingSessions.filter(
+          (s: ParkingSession) =>
+            s.status === "end" && s.check_out && s.check_out_image_url
+        );
+        if (completedSessions.length > 0) {
+          fetchInvoicesForSessions(completedSessions);
+        }
+
+        // Fetch card info for all sessions
+        if (parkingSessions.length > 0) {
+          fetchCardsForSessions(parkingSessions);
+        }
       } else {
-        setError("Không tìm thấy xe với biển số này");
-        setSearched(true);
+        setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
       }
     } catch (err: any) {
-      console.error("Lỗi tìm kiếm xe:", err);
-      setError("Có lỗi xảy ra khi tìm kiếm xe");
-      setSearched(true);
+      console.error("Error fetching sessions:", err);
+      if (err.response?.status === 403) {
+        return;
+      }
+      setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
+      showError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchInvoicesForSessions = async (
+    completedSessions: ParkingSession[]
+  ) => {
+    const invoicePromises = completedSessions.map(async (session) => {
+      try {
+        setLoadingInvoices((prev) => ({ ...prev, [session.id]: true }));
+        const response = await getInvoiceBySessionId(session.id);
+        if (response.success && response.data) {
+          setInvoices((prev) => ({
+            ...prev,
+            [session.id]: response.data.amount,
+          }));
+        }
+      } catch (err) {
+        console.error(`Error fetching invoice for session ${session.id}:`, err);
+      } finally {
+        setLoadingInvoices((prev) => ({ ...prev, [session.id]: false }));
+      }
+    });
+
+    await Promise.all(invoicePromises);
+  };
+
+  const fetchCardsForSessions = async (sessions: ParkingSession[]) => {
+    const cardPromises = sessions.map(async (session) => {
+      if (!session.card_id) return;
+      try {
+        setLoadingCards((prev) => ({ ...prev, [session.id]: true }));
+        const response = await getCardById(session.card_id);
+        if (response.success && response.data) {
+          setCards((prev) => ({
+            ...prev,
+            [session.id]: response.data,
+          }));
+        }
+      } catch (err) {
+        console.error(`Error fetching card for session ${session.id}:`, err);
+      } finally {
+        setLoadingCards((prev) => ({ ...prev, [session.id]: false }));
+      }
+    });
+
+    await Promise.all(cardPromises);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  const handleImageClick = (imageUrl: string, plate: string, type: string) => {
+    setSelectedImage({ url: imageUrl, plate, type });
+    setLightboxOpen(true);
+  };
+
+  const handleCloseLightbox = () => {
+    setLightboxOpen(false);
+    setSelectedImage(null);
   };
 
   return (
@@ -92,13 +189,23 @@ export default function HomeScreen() {
                 resizeMode="contain"
               />
             </View>
-            <View>
+            <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>Smart Parking</Text>
               <Text style={styles.headerSubtitle}>
-                Hệ thống bãi đỗ xe thông minh
+                Tra cứu thông tin gửi xe
               </Text>
+              {user && <Text style={styles.userEmail}>{user.email}</Text>}
             </View>
           </View>
+          {user && (
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.logoutText}>Đăng xuất</Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </LinearGradient>
 
@@ -107,213 +214,302 @@ export default function HomeScreen() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
+        {/* Header Section */}
         <Animated.View
           entering={FadeInUp.delay(200).duration(600)}
           style={styles.searchSection}
         >
-          <Text style={styles.mainTitle}>Tra cứu thông tin đỗ xe</Text>
+          <Text style={styles.mainTitle}>Lịch sử gửi xe</Text>
           <Text style={styles.subtitle}>
-            Nhập biển số xe để xem thông tin chi tiết về trạng thái đỗ xe của
-            bạn
+            Xem lịch sử các lượt gửi xe của bạn
           </Text>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Biển số xe</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="30A-12345"
-              placeholderTextColor="#94A3B8"
-              value={licensePlate}
-              onChangeText={handleLicensePlateChange}
-              autoCapitalize="characters"
-              returnKeyType="search"
-              onSubmitEditing={handleSearch}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={handleSearch}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={["#0EA5E9", "#0284C7"]}
-              style={styles.searchButtonGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.searchIcon}>🔍</Text>
-                  <Text style={styles.searchButtonText}>Tra cứu thông tin</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
         </Animated.View>
 
-        {searched && parkingData && (
-          <Animated.View
-            entering={BounceIn.delay(300)}
-            style={styles.statusBadge}
-          >
-            <Text style={styles.statusIcon}>✓</Text>
-            <Text style={styles.statusText}>
-              Tìm thấy xe với biển số {licensePlate}
-            </Text>
+        {/* Loading State */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0EA5E9" />
+            <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
+          </View>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <Animated.View entering={FadeIn} style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>⚠️</Text>
+            <Text style={styles.errorText}>{error}</Text>
           </Animated.View>
         )}
 
-        {searched && parkingData && (
-          <Animated.View entering={FadeInUp.delay(400)}>
-            <View style={styles.vehicleCard}>
-              <View style={styles.vehicleHeader}>
-                <Text style={styles.vehicleTitle}>Thông tin xe</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor:
-                        getStatusColor(parkingData.status) === "#4CAF50"
-                          ? "#D1FAE5"
-                          : "#FEF3C7",
-                    },
-                  ]}
-                >
-                  <Text
+        {/* Sessions List */}
+        {!loading && !error && (
+          <>
+            {sessions.length === 0 ? (
+              <Animated.View entering={FadeIn} style={styles.noDataContainer}>
+                <Text style={styles.noDataIcon}>🚗</Text>
+                <Text style={styles.noDataText}>Chưa có phiên gửi xe nào</Text>
+                <Text style={styles.noDataSubtext}>
+                  Lịch sử gửi xe của bạn sẽ hiển thị tại đây
+                </Text>
+              </Animated.View>
+            ) : (
+              sessions.map((session, index) => {
+                // Check if session is truly completed (has status "end", check_out, and check_out_image_url)
+                const hasCheckout =
+                  session.status === "end" &&
+                  session.check_out &&
+                  session.check_out_image_url;
+                // If not completed, it's still active/packing
+                const isActive = !hasCheckout;
+                const invoiceAmount = invoices[session.id];
+                const isLoadingInvoice = loadingInvoices[session.id];
+                const card = cards[session.id];
+                const isMonthlyCard = card?.type === "monthly";
+                const daysRemaining = card?.monthly_user_expiry
+                  ? calculateDaysRemaining(card.monthly_user_expiry)
+                  : null;
+
+                return (
+                  <Animated.View
+                    key={session.id}
+                    entering={FadeInUp.delay(index * 100).duration(500)}
                     style={[
-                      styles.statusText,
-                      { color: getStatusColor(parkingData.status) },
+                      styles.sessionCard,
+                      {
+                        borderColor: isActive ? "#F59E0B" : "#10B981",
+                        borderWidth: 3,
+                      },
                     ]}
                   >
-                    {parkingData.status}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.vehicleInfo}>
-                {/* Hình ảnh xe */}
-                {parkingData.imageUrl && (
-                  <VehicleImage
-                    imageUrl={parkingData.imageUrl}
-                    vehicleId={parkingData.id}
-                  />
-                )}
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Biển số xe:</Text>
-                  <Text style={styles.infoValue}>
-                    {parkingData.licensePlate}
-                  </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Loại thẻ:</Text>
-                  <Text style={styles.infoValue}>
-                    {getCardTypeText(parkingData.cardType)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Thời gian vào:</Text>
-                  <Text style={styles.infoValue}>
-                    {formatDate(parkingData.timeStart)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Thời gian đã gửi:</Text>
-                  <Text style={styles.infoValue}>
-                    {formatTimeElapsedDetailed(
-                      parkingData.timeElapsedMinutes,
-                      parkingData.timeElapsedSeconds
-                    )}
-                  </Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Số tiền phải trả:</Text>
-                  <Text style={[styles.infoValue, styles.amountText]}>
-                    {formatCurrency(parkingData.amountToPay)}
-                  </Text>
-                </View>
-
-                {parkingData.monthlyTicketInfo && (
-                  <View style={styles.monthlyTicketSection}>
-                    <Text style={styles.monthlyTicketTitle}>
-                      Thông tin vé tháng
-                    </Text>
-                    <View style={styles.monthlyTicketInfo}>
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Tên chủ xe:</Text>
-                        <Text style={styles.infoValue}>
-                          {parkingData.monthlyTicketInfo.name}
-                        </Text>
-                      </View>
-
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Ngày bắt đầu:</Text>
-                        <Text style={styles.infoValue}>
-                          {parkingData.monthlyTicketInfo.startDate}
-                        </Text>
-                      </View>
-
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Ngày kết thúc:</Text>
-                        <Text style={styles.infoValue}>
-                          {parkingData.monthlyTicketInfo.endDate}
-                        </Text>
-                      </View>
-
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Số ngày còn lại:</Text>
+                    {/* Header */}
+                    <View style={styles.sessionHeader}>
+                      <Text style={styles.sessionPlate}>
+                        {session.plate || "N/A"}
+                      </Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor: isActive ? "#FEF3C7" : "#D1FAE5",
+                          },
+                        ]}
+                      >
                         <Text
                           style={[
-                            styles.infoValue,
-                            {
-                              color: parkingData.monthlyTicketInfo.isActive
-                                ? "#059669"
-                                : "#DC2626",
-                            },
+                            styles.statusText,
+                            { color: isActive ? "#92400E" : "#065F46" },
                           ]}
                         >
-                          {parkingData.monthlyTicketInfo.daysRemaining} ngày
+                          {isActive ? "Đang gửi" : "Đã checkout"}
                         </Text>
                       </View>
                     </View>
-                  </View>
-                )}
-              </View>
-            </View>
-          </Animated.View>
-        )}
 
-        {searched && !parkingData && !error && (
-          <Animated.View
-            entering={FadeInUp.delay(300)}
-            style={styles.noDataContainer}
-          >
-            <Text style={styles.noDataIcon}>🚫</Text>
-            <Text style={styles.noDataText}>Không tìm thấy thông tin xe</Text>
-            <Text style={styles.noDataSubtext}>
-              Vui lòng kiểm tra lại biển số xe
-            </Text>
-          </Animated.View>
-        )}
+                    {/* Images Row */}
+                    <View style={styles.imagesRow}>
+                      {/* Check-in Image */}
+                      <TouchableOpacity
+                        style={styles.imageContainer}
+                        onPress={() =>
+                          session.check_in_image_url &&
+                          handleImageClick(
+                            session.check_in_image_url,
+                            session.plate,
+                            "checkin"
+                          )
+                        }
+                        disabled={!session.check_in_image_url}
+                        activeOpacity={0.8}
+                      >
+                        {session.check_in_image_url ? (
+                          <Image
+                            source={{
+                              uri:
+                                getImageUrl(session.check_in_image_url) || "",
+                            }}
+                            style={styles.sessionImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.imagePlaceholder}>
+                            <Text style={styles.imagePlaceholderText}>
+                              Chưa có ảnh
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.imageLabel}>
+                          <Text style={styles.imageLabelText}>CHECK-IN</Text>
+                        </View>
+                      </TouchableOpacity>
 
-        {searched && error && (
-          <Animated.View
-            entering={FadeInUp.delay(300)}
-            style={styles.errorContainer}
-          >
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorText}>{error}</Text>
-            <Text style={styles.errorSubtext}>Vui lòng thử lại sau</Text>
-          </Animated.View>
+                      {/* Check-out Image */}
+                      <TouchableOpacity
+                        style={styles.imageContainer}
+                        onPress={() =>
+                          session.check_out_image_url &&
+                          handleImageClick(
+                            session.check_out_image_url,
+                            session.plate,
+                            "checkout"
+                          )
+                        }
+                        disabled={!session.check_out_image_url}
+                        activeOpacity={0.8}
+                      >
+                        {session.check_out_image_url ? (
+                          <Image
+                            source={{
+                              uri:
+                                getImageUrl(session.check_out_image_url) || "",
+                            }}
+                            style={styles.sessionImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.imagePlaceholder}>
+                            <Text style={styles.imagePlaceholderText}>
+                              {isActive ? "Chưa checkout" : "Chưa có ảnh"}
+                            </Text>
+                          </View>
+                        )}
+                        <View style={styles.imageLabel}>
+                          <Text style={styles.imageLabelText}>CHECK-OUT</Text>
+                        </View>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Details */}
+                    <View style={styles.detailsContainer}>
+                      <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Thời gian vào:</Text>
+                        <Text style={styles.detailValue}>
+                          {formatDateTime(session.check_in)}
+                        </Text>
+                      </View>
+
+                      {isMonthlyCard && (
+                        <>
+                          <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>Loại vé:</Text>
+                            {loadingCards[session.id] ? (
+                              <ActivityIndicator size="small" color="#0EA5E9" />
+                            ) : (
+                              <Text style={styles.detailValue}>Vé tháng</Text>
+                            )}
+                          </View>
+
+                          <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>
+                              Số ngày còn hiệu lực:
+                            </Text>
+                            {loadingCards[session.id] ? (
+                              <ActivityIndicator size="small" color="#0EA5E9" />
+                            ) : (
+                              <Text
+                                style={[
+                                  styles.detailValue,
+                                  daysRemaining !== null && daysRemaining <= 7
+                                    ? styles.expiringText
+                                    : null,
+                                ]}
+                              >
+                                {formatDaysRemaining(daysRemaining)}
+                              </Text>
+                            )}
+                          </View>
+                        </>
+                      )}
+
+                      {hasCheckout && (
+                        <>
+                          <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>
+                              Thời gian checkout:
+                            </Text>
+                            <Text style={styles.detailValue}>
+                              {formatDateTime(session.check_out)}
+                            </Text>
+                          </View>
+
+                          <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>
+                              Thời gian gửi:
+                            </Text>
+                            <Text style={styles.detailValue}>
+                              {calculateDuration(
+                                session.check_in,
+                                session.check_out
+                              )}
+                            </Text>
+                          </View>
+
+                          <View style={styles.detailRow}>
+                            <Text style={styles.detailLabel}>
+                              Số tiền đã thanh toán:
+                            </Text>
+                            {isLoadingInvoice ? (
+                              <ActivityIndicator size="small" color="#0EA5E9" />
+                            ) : (
+                              <Text
+                                style={[styles.detailValue, styles.amountText]}
+                              >
+                                {invoiceAmount
+                                  ? formatCurrency(invoiceAmount)
+                                  : "-"}
+                              </Text>
+                            )}
+                          </View>
+                        </>
+                      )}
+                    </View>
+                  </Animated.View>
+                );
+              })
+            )}
+          </>
         )}
       </ScrollView>
+
+      {/* Lightbox Modal */}
+      <Modal
+        visible={lightboxOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseLightbox}
+      >
+        <Pressable style={styles.lightboxOverlay} onPress={handleCloseLightbox}>
+          <Pressable
+            style={styles.lightboxContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {selectedImage && (
+              <>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleCloseLightbox}
+                >
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
+                <View style={styles.lightboxHeader}>
+                  <Text style={styles.lightboxPlate}>
+                    {selectedImage.plate}
+                  </Text>
+                  <Text style={styles.lightboxType}>
+                    {selectedImage.type === "checkin"
+                      ? "Check-in"
+                      : "Check-out"}
+                  </Text>
+                </View>
+                <Image
+                  source={{ uri: getImageUrl(selectedImage.url) || "" }}
+                  style={styles.lightboxImage}
+                  resizeMode="contain"
+                />
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -336,12 +532,37 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: 12,
   },
   logoContainer: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+    flex: 1,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  userEmail: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 4,
+  },
+  logoutButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  logoutText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
   logo: {
     width: 56,
@@ -385,6 +606,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 4,
+    marginBottom: 20,
   },
   mainTitle: {
     fontSize: 28,
@@ -401,7 +623,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 0,
   },
   inputLabel: {
     fontSize: 15,
@@ -413,8 +635,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     borderRadius: 12,
     padding: 16,
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 16,
     color: "#0F172A",
     borderWidth: 2,
     borderColor: "#E2E8F0",
@@ -422,6 +643,7 @@ const styles = StyleSheet.create({
   searchButton: {
     borderRadius: 12,
     overflow: "hidden",
+    marginTop: 16,
     shadowColor: "#0EA5E9",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -444,28 +666,34 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  statusBadge: {
-    flexDirection: "row",
+  loadingContainer: {
+    padding: 40,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#D1FAE5",
-    borderRadius: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    marginTop: 20,
-    alignSelf: "center",
-    gap: 8,
-    borderWidth: 2,
-    borderColor: "#A7F3D0",
+    gap: 16,
   },
-  statusIcon: {
-    fontSize: 18,
-    color: "#059669",
-  },
-  statusText: {
+  loadingText: {
     fontSize: 16,
+    color: "#64748B",
+  },
+  errorContainer: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 20,
+    padding: 40,
+    alignItems: "center",
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  errorIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 18,
     fontWeight: "700",
-    color: "#059669",
+    color: "#DC2626",
+    textAlign: "center",
   },
   noDataContainer: {
     backgroundColor: "#FFFFFF",
@@ -488,49 +716,109 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0F172A",
     marginBottom: 8,
+    textAlign: "center",
   },
   noDataSubtext: {
     fontSize: 15,
     color: "#64748B",
+    textAlign: "center",
   },
-  vehicleCard: {
+  sessionCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
     padding: 20,
-    marginTop: 16,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 4,
+    elevation: 6,
   },
-  vehicleHeader: {
+  sessionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
   },
-  vehicleTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+  sessionPlate: {
+    fontSize: 24,
+    fontWeight: "800",
     color: "#0F172A",
+    letterSpacing: 1,
   },
-  vehicleInfo: {
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  imagesRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  imageContainer: {
+    flex: 1,
+    height: 150,
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    position: "relative",
+  },
+  sessionImage: {
+    width: "100%",
+    height: "100%",
+  },
+  imagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imagePlaceholderText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  imageLabel: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  imageLabelText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    letterSpacing: 1,
+  },
+  detailsContainer: {
     gap: 12,
   },
-  infoRow: {
+  detailRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
   },
-  infoLabel: {
+  detailLabel: {
     fontSize: 14,
     fontWeight: "600",
     color: "#64748B",
     flex: 1,
   },
-  infoValue: {
+  detailValue: {
     fontSize: 14,
     fontWeight: "500",
     color: "#0F172A",
@@ -542,51 +830,55 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#059669",
   },
-  monthlyTicketSection: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  monthlyTicketTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 12,
-  },
-  monthlyTicketInfo: {
-    gap: 8,
-  },
-  errorContainer: {
-    backgroundColor: "#FEF2F2",
-    borderRadius: 20,
-    padding: 40,
-    alignItems: "center",
-    marginTop: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  errorIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  errorText: {
-    fontSize: 18,
-    fontWeight: "700",
+  expiringText: {
     color: "#DC2626",
-    marginBottom: 8,
-    textAlign: "center",
+    fontWeight: "700",
   },
-  errorSubtext: {
-    fontSize: 15,
-    color: "#7F1D1D",
-    textAlign: "center",
+  lightboxOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  lightboxContent: {
+    width: width - 40,
+    maxHeight: "90%",
+    alignItems: "center",
+  },
+  closeButton: {
+    position: "absolute",
+    top: -50,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000,
+  },
+  closeButtonText: {
+    color: "#FFFFFF",
+    fontSize: 24,
+    fontWeight: "700",
+  },
+  lightboxHeader: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  lightboxPlate: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 8,
+  },
+  lightboxType: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  lightboxImage: {
+    width: width - 40,
+    height: (width - 40) * 1.2,
+    borderRadius: 12,
   },
 });
