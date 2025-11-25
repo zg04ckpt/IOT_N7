@@ -12,8 +12,10 @@ import Dashboard from "./pages/Dashboard";
 import ParkingList from "./pages/ParkingList";
 import DeviceManagement from "./pages/DeviceManagement";
 import CardManagement from "./pages/CardManagement";
-import MonthlyTicket from "./pages/MonthlyTicket";
+import UserManagement from "./pages/UserManagement";
 import FirmwareManagement from "./pages/FirmwareManagement";
+import AccessDenied from "./pages/AccessDenied";
+import UserSessionLookup from "./pages/UserSessionLookup";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
@@ -196,6 +198,16 @@ function AppContent() {
           }
         />
 
+        {/* User Session Lookup Route (for USER role only) */}
+        <Route
+          path="/user-sessions"
+          element={
+            <ProtectedRoute>
+              <UserSessionLookup />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/"
           element={
@@ -208,8 +220,9 @@ function AppContent() {
           <Route path="parking-list" element={<ParkingList />} />
           <Route path="device-management" element={<DeviceManagement />} />
           <Route path="card-management" element={<CardManagement />} />
-          <Route path="monthly-ticket" element={<MonthlyTicket />} />
+          <Route path="user-management" element={<UserManagement />} />
           <Route path="firmware-management" element={<FirmwareManagement />} />
+          <Route path="access-denied" element={<AccessDenied />} />
 
           <Route index element={<Navigate to="dashboard" replace />} />
         </Route>

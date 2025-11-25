@@ -1,11 +1,5 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useRef,
-} from "react";
-import { getCurrentUser, logoutUser } from "../api/auth";
+import React, { createContext, useContext, useState, useCallback } from "react";
+import { getUserProfile, logoutUser } from "../api/user";
 
 const AuthContext = createContext();
 
@@ -14,40 +8,37 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const hasCheckedAuth = useRef(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const checkLoginStatus = async () => {
-      if (hasCheckedAuth.current) {
-        setIsLoading(false);
-        return;
-      }
-
+  const refreshUser = useCallback(async () => {
+    try {
       setIsLoading(true);
-      try {
-        const res = await getCurrentUser();
-        if (res.data.success) {
-          setUser(res.data.data);
-          setIsAuthenticated(true);
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
+      const res = await getUserProfile();
+      if (res.success) {
+        const userData = res.data.user || res.data;
+        setUser(userData);
+        setIsAuthenticated(true);
+        return userData;
+      } else {
         setUser(null);
         setIsAuthenticated(false);
-        console.error("Lỗi khi kiểm tra trạng thái đăng nhập:", error);
-      } finally {
-        setIsLoading(false);
-        hasCheckedAuth.current = true;
+        return null;
       }
-    };
-
-    checkLoginStatus();
+    } catch (error) {
+      setUser(null);
+      setIsAuthenticated(false);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const logout = async () => {
+  const login = useCallback((userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+  }, []);
+
+  const logout = useCallback(async () => {
     try {
       await logoutUser();
     } catch (error) {
@@ -55,15 +46,16 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null);
       setIsAuthenticated(false);
-      hasCheckedAuth.current = false;
     }
-  };
+  }, []);
 
   const contextValue = {
     user,
     isAuthenticated,
     isLoading,
     logout,
+    login,
+    refreshUser,
     setUser,
     setIsAuthenticated,
   };

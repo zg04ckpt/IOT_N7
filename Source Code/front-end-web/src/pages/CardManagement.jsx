@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
 import {
   Box,
   Card,
@@ -34,14 +33,15 @@ import {
 } from "@mui/material";
 import { motion } from "framer-motion";
 import LoadingScreen from "../components/LoadingScreen";
-import AddIcon from "@mui/icons-material/Add";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
 import WarningIcon from "@mui/icons-material/Warning";
 import SearchIcon from "@mui/icons-material/Search";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SortIcon from "@mui/icons-material/Sort";
-import { CiTrash, CiEdit } from "react-icons/ci";
-import { getAllCards, createCard, updateCard, deleteCard } from "../api/card";
+import DirectionsCarIcon from "@mui/icons-material/DirectionsCar";
+import ConfirmationNumberIcon from "@mui/icons-material/ConfirmationNumber";
+import { CiTrash } from "react-icons/ci";
+import { getAllCards, deleteCard } from "../api/card";
 import { useSnackbar } from "../contexts/SnackbarContext";
 
 const MotionCard = motion(Card);
@@ -54,9 +54,6 @@ export default function CardManagement() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const [openDialog, setOpenDialog] = useState(false);
-  const [dialogType, setDialogType] = useState("add");
-  const [selectedCard, setSelectedCard] = useState(null);
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState(false);
   const [cardToDelete, setCardToDelete] = useState(null);
 
@@ -64,8 +61,9 @@ export default function CardManagement() {
   const [rowsPerPage, setRowsPerPage] = useState(5);
 
   const [searchName, setSearchName] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterType, setFilterType] = useState("all");
+  const [searchCustomerName, setSearchCustomerName] = useState("");
+  const [searchPhone, setSearchPhone] = useState("");
+  const [filterType, setFilterType] = useState("Vé lượt");
   const [sortOrder, setSortOrder] = useState("desc");
 
   useEffect(() => {
@@ -74,13 +72,17 @@ export default function CardManagement() {
         setLoading(true);
         setError(null);
         const response = await getAllCards();
-        if (response.data.success) {
-          setCards(response.data.data || []);
+        if (response.success) {
+          setCards(response.data || []);
         } else {
           setError("Không thể tải dữ liệu vé xe");
         }
       } catch (err) {
         console.error("Error fetching cards:", err);
+        // Nếu là lỗi 403, để axios interceptor xử lý redirect
+        if (err.response?.status === 403) {
+          return;
+        }
         setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
       } finally {
         setLoading(false);
@@ -101,20 +103,33 @@ export default function CardManagement() {
 
   const filteredData = cards
     .filter((card) => {
-      const matchName = card.cardNumber
-        ?.toLowerCase()
-        .includes(searchName.toLowerCase());
-      const matchStatus =
-        filterStatus === "all" ||
-        (card.isActive ? "Hoạt động" : "Không hoạt động") === filterStatus;
+      // Filter theo loại vé
       const matchType =
-        filterType === "all" ||
-        (card.type === 0 ? "Vé lượt" : "Vé tháng") === filterType;
-      return matchName && matchStatus && matchType;
+        (card.type === "normal" ? "Vé lượt" : "Vé tháng") === filterType;
+
+      if (!matchType) return false;
+
+      // Filter theo UID (cho cả 2 loại)
+      const matchUid = (card.uid || "")
+        .toLowerCase()
+        .includes(searchName.toLowerCase());
+
+      // Filter theo tên và số điện thoại (chỉ cho vé tháng)
+      if (filterType === "Vé tháng" && card.type === "monthly") {
+        const matchCustomerName = (card.monthly_user_name || "")
+          .toLowerCase()
+          .includes(searchCustomerName.toLowerCase());
+        const matchPhone = (card.monthly_user_phone || "")
+          .toLowerCase()
+          .includes(searchPhone.toLowerCase());
+        return matchUid && matchCustomerName && matchPhone;
+      }
+
+      return matchUid;
     })
     .sort((a, b) => {
-      const dateA = new Date(a.createdAt);
-      const dateB = new Date(b.createdAt);
+      const dateA = new Date(a.created_at || a.createdAt);
+      const dateB = new Date(b.created_at || b.createdAt);
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
 
@@ -122,93 +137,6 @@ export default function CardManagement() {
     page * rowsPerPage,
     page * rowsPerPage + rowsPerPage
   );
-
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors, isValid },
-    trigger,
-  } = useForm({
-    mode: "onBlur",
-    defaultValues: {
-      cardNumber: "",
-      price: "",
-      type: 0,
-      isActive: true,
-    },
-  });
-
-  const handleOpenDialog = (type, card = null) => {
-    setDialogType(type);
-    setSelectedCard(card);
-    if (card) {
-      reset({
-        cardNumber: card.cardNumber,
-        price: card.price,
-        type: card.type,
-        isActive: card.isActive,
-      });
-    } else {
-      reset({
-        cardNumber: "",
-        price: "",
-        type: 0,
-        isActive: true,
-      });
-    }
-    setOpenDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    reset();
-  };
-
-  const handleSaveCard = async (formData) => {
-    try {
-      setRefreshing(true);
-      setError(null);
-      let response;
-      if (dialogType === "add") {
-        response = await createCard({
-          cardNumber: formData.cardNumber,
-          price: Number(formData.price),
-          type: Number(formData.type),
-        });
-        console.log(formData.cardNumber, formData.price, formData.type);
-      } else if (dialogType === "edit") {
-        response = await updateCard(
-          {
-            cardNumber: formData.cardNumber,
-            price: Number(formData.price),
-            type: Number(formData.type),
-            isActive: formData.isActive,
-          },
-          selectedCard.id
-        );
-      }
-
-      if (response && response.data.success) {
-        const cardsResponse = await getAllCards();
-        if (cardsResponse.data.success) {
-          setCards(cardsResponse.data.data || []);
-        }
-        handleCloseDialog();
-        showSuccess(
-          dialogType === "add"
-            ? "Đăng ký vé xe thành công!"
-            : "Cập nhật vé xe thành công!"
-        );
-      }
-    } catch (error) {
-      console.error("Error saving card:", error);
-      showError("Không thể lưu vé xe. Vui lòng thử lại.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   const handleDeleteClick = (id) => {
     setCardToDelete(id);
@@ -220,10 +148,10 @@ export default function CardManagement() {
       setRefreshing(true);
       setError(null);
       const response = await deleteCard(cardToDelete);
-      if (response.data.success) {
+      if (response.success) {
         const cardsResponse = await getAllCards();
-        if (cardsResponse.data.success) {
-          setCards(cardsResponse.data.data || []);
+        if (cardsResponse.success) {
+          setCards(cardsResponse.data || []);
         }
         setDeleteConfirmDialog(false);
         setCardToDelete(null);
@@ -231,7 +159,10 @@ export default function CardManagement() {
       }
     } catch (error) {
       console.error("Error deleting card:", error);
-      showError("Không thể xóa vé xe. Vui lòng thử lại.");
+      const errorMessage =
+        error.response?.data?.message ||
+        "Không thể xóa vé xe. Vui lòng thử lại.";
+      showError(errorMessage);
     } finally {
       setRefreshing(false);
     }
@@ -242,17 +173,22 @@ export default function CardManagement() {
       setRefreshing(true);
       setError(null);
       const response = await getAllCards();
-      if (response.data.success) {
-        setCards(response.data.data || []);
+      if (response.success) {
+        setCards(response.data || []);
         setSearchName("");
-        setFilterStatus("all");
-        setFilterType("all");
+        setSearchCustomerName("");
+        setSearchPhone("");
+        setFilterType("Vé lượt");
         setPage(0);
       } else {
         setError("Không thể tải dữ liệu vé xe");
       }
     } catch (err) {
       console.error("Error refreshing cards:", err);
+      // Nếu là lỗi 403, để axios interceptor xử lý redirect
+      if (err.response?.status === 403) {
+        return;
+      }
       setError("Không thể tải dữ liệu. Vui lòng thử lại sau.");
     } finally {
       setRefreshing(false);
@@ -314,30 +250,6 @@ export default function CardManagement() {
             Quản lý các loại vé xe trong hệ thống
           </Typography>
         </Box>
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog("add")}
-            sx={{
-              background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
-              borderRadius: "10px",
-              fontWeight: 600,
-              textTransform: "none",
-              fontSize: "1rem",
-              px: 3,
-              py: 1.5,
-              boxShadow: "0 4px 12px rgba(30, 136, 229, 0.3)",
-              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              "&:hover": {
-                boxShadow: "0 6px 16px rgba(30, 136, 229, 0.4)",
-                transform: "translateY(-2px)",
-              },
-            }}
-          >
-            Đăng ký vé xe
-          </Button>
-        </motion.div>
       </MotionBox>
 
       {/* Stats */}
@@ -351,21 +263,15 @@ export default function CardManagement() {
           },
           {
             label: "Vé lượt",
-            value: cards.filter((c) => c.type === 0).length,
+            value: cards.filter((c) => c.type === "normal").length,
             color: "#1976d2",
             delay: 0.2,
           },
           {
             label: "Vé tháng",
-            value: cards.filter((c) => c.type === 1).length,
+            value: cards.filter((c) => c.type === "monthly").length,
             color: "#7b1fa2",
             delay: 0.3,
-          },
-          {
-            label: "Hoạt động",
-            value: cards.filter((c) => c.isActive === true).length,
-            color: "#4caf50",
-            delay: 0.4,
           },
         ].map((stat, idx) => (
           <Grid item xs={12} sm={6} md={3} key={idx}>
@@ -424,14 +330,14 @@ export default function CardManagement() {
       >
         <CardContent>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
+            <Grid item xs={12} sm={6} md={2}>
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
                 <TextField
                   fullWidth
-                  placeholder="Tìm kiếm số thẻ..."
+                  placeholder="Nhập UID thẻ..."
                   value={searchName}
                   onChange={(e) => setSearchName(e.target.value)}
                   InputProps={{
@@ -456,53 +362,95 @@ export default function CardManagement() {
                 />
               </motion.div>
             </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <motion.div
-                whileHover={{ scale: 1.02 }}
-                transition={{ type: "spring", stiffness: 300 }}
-              >
-                <FormControl fullWidth>
-                  <InputLabel id="status-select-label">Trạng thái</InputLabel>
-                  <Select
-                    labelId="status-select-label"
-                    id="status-select"
-                    value={filterStatus}
-                    label="Trạng thái"
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    sx={{
-                      borderRadius: "10px",
-                      transition: "all 0.3s",
-                      "& .MuiOutlinedInput-root": {
-                        transition: "all 0.3s",
-                        "&:hover": {
-                          boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                        },
-                        "&.Mui-focused": {
-                          boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                        },
-                      },
-                    }}
+            {filterType === "Vé tháng" && (
+              <>
+                <Grid item xs={12} sm={6} md={3}>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ type: "spring", stiffness: 300 }}
                   >
-                    <MenuItem value="all">Tất cả</MenuItem>
-                    <MenuItem value="Hoạt động">Hoạt động</MenuItem>
-                    <MenuItem value="Không hoạt động">Không hoạt động</MenuItem>
-                  </Select>
-                </FormControl>
-              </motion.div>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
+                    <TextField
+                      fullWidth
+                      placeholder="Nhập tên khách hàng..."
+                      value={searchCustomerName}
+                      onChange={(e) => setSearchCustomerName(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon sx={{ color: "text.secondary" }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: "10px",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
+                          },
+                          "&.Mui-focused": {
+                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
+                          },
+                        },
+                      }}
+                    />
+                  </motion.div>
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <TextField
+                      fullWidth
+                      placeholder="Nhập số điện thoại..."
+                      value={searchPhone}
+                      onChange={(e) => setSearchPhone(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon sx={{ color: "text.secondary" }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: "10px",
+                          transition: "all 0.3s",
+                          "&:hover": {
+                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
+                          },
+                          "&.Mui-focused": {
+                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
+                          },
+                        },
+                      }}
+                    />
+                  </motion.div>
+                </Grid>
+              </>
+            )}
+            <Grid item xs={12} sm={6} md={filterType === "Vé tháng" ? 2 : 3}>
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300 }}
               >
                 <FormControl fullWidth>
-                  <InputLabel id="type-select-label">Loại vé</InputLabel>
+                  <InputLabel id="type-select-label" shrink>
+                    Loại vé
+                  </InputLabel>
                   <Select
                     labelId="type-select-label"
                     id="type-select"
-                    value={filterType}
+                    value={filterType || "Vé lượt"}
                     label="Loại vé"
-                    onChange={(e) => setFilterType(e.target.value)}
+                    displayEmpty={false}
+                    onChange={(e) => {
+                      setFilterType(e.target.value);
+                      setSearchCustomerName("");
+                      setSearchPhone("");
+                      setPage(0);
+                    }}
                     sx={{
                       borderRadius: "10px",
                       transition: "all 0.3s",
@@ -517,14 +465,13 @@ export default function CardManagement() {
                       },
                     }}
                   >
-                    <MenuItem value="all">Tất cả</MenuItem>
                     <MenuItem value="Vé lượt">Vé lượt</MenuItem>
                     <MenuItem value="Vé tháng">Vé tháng</MenuItem>
                   </Select>
                 </FormControl>
               </motion.div>
             </Grid>
-            <Grid item xs={12} sm={6} md={1}>
+            <Grid item xs={6} sm={3} md={1}>
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -558,7 +505,7 @@ export default function CardManagement() {
                 </Tooltip>
               </motion.div>
             </Grid>
-            <Grid item xs={12} sm={6} md={1}>
+            <Grid item xs={6} sm={3} md={1}>
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -633,66 +580,123 @@ export default function CardManagement() {
                     bgcolor: "rgba(30, 136, 229, 0.05)",
                   }}
                 >
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: 700,
-                      color: "text.primary",
-                      width: "15%",
-                    }}
-                  >
-                    ID thẻ
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: 700,
-                      color: "text.primary",
-                      width: "20%",
-                    }}
-                  >
-                    Số thẻ
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: 700,
-                      color: "text.primary",
-                      width: "15%",
-                    }}
-                  >
-                    Loại vé
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: 700,
-                      color: "text.primary",
-                      width: "15%",
-                    }}
-                  >
-                    Giá vé
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: 700,
-                      color: "text.primary",
-                      width: "15%",
-                    }}
-                  >
-                    Trạng thái
-                  </TableCell>
-                  <TableCell
-                    align="center"
-                    sx={{
-                      fontWeight: 700,
-                      color: "text.primary",
-                      width: "20%",
-                    }}
-                  >
-                    Hành động
-                  </TableCell>
+                  {filterType === "Vé lượt" ? (
+                    <>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "33.33%",
+                        }}
+                      >
+                        UID
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "33.33%",
+                        }}
+                      >
+                        Loại vé
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "33.33%",
+                        }}
+                      >
+                        Hành động
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "12%",
+                        }}
+                      >
+                        UID
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "10%",
+                        }}
+                      >
+                        Loại vé
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "15%",
+                        }}
+                      >
+                        Tên khách hàng
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "12%",
+                        }}
+                      >
+                        Số điện thoại
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "10%",
+                        }}
+                      >
+                        Ngày đăng ký
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "10%",
+                        }}
+                      >
+                        Ngày hết hạn
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "10%",
+                        }}
+                      >
+                        Địa chỉ
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontWeight: 700,
+                          color: "text.primary",
+                          width: "25%",
+                        }}
+                      >
+                        Hành động
+                      </TableCell>
+                    </>
+                  )}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -703,179 +707,324 @@ export default function CardManagement() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.6 + index * 0.05, duration: 0.3 }}
                   >
-                    <TableCell
-                      align="center"
-                      sx={{
-                        fontWeight: 600,
-                        py: 2,
-                        width: "15%",
-                        minWidth: "80px",
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 600,
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {card.id}
-                      </Typography>
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{
-                        fontWeight: 600,
-                        py: 2,
-                        width: "20%",
-                        minWidth: "120px",
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontWeight: 600,
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {card.cardNumber}
-                      </Typography>
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{
-                        py: 2,
-                        width: "15%",
-                        minWidth: "100px",
-                      }}
-                    >
-                      <motion.div whileHover={{ scale: 1.05 }}>
-                        <Chip
-                          label={card.type === 0 ? "Vé lượt" : "Vé tháng"}
-                          size="small"
+                    {filterType === "Vé lượt" ? (
+                      <>
+                        <TableCell
+                          align="center"
                           sx={{
-                            backgroundColor:
-                              card.type === 0 ? "#e3f2fd" : "#f3e5f5",
-                            color: card.type === 0 ? "#1976d2" : "#7b1fa2",
                             fontWeight: 600,
-                            borderRadius: "8px",
-                            boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-                            fontSize: "0.75rem",
+                            py: 2,
+                            width: "33.33%",
                           }}
-                        />
-                      </motion.div>
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{
-                        py: 2,
-                        width: "15%",
-                        minWidth: "100px",
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {card.price?.toLocaleString("vi-VN")} VND
-                      </Typography>
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{
-                        py: 2,
-                        width: "15%",
-                        minWidth: "120px",
-                      }}
-                    >
-                      <motion.div whileHover={{ scale: 1.05 }}>
-                        <Chip
-                          label={
-                            card.isActive ? "Hoạt động" : "Không hoạt động"
-                          }
-                          size="small"
-                          sx={{
-                            backgroundColor: card.isActive
-                              ? "#dbfde5"
-                              : "#fdeaea",
-                            color: card.isActive ? "#036333" : "#d32f2f",
-                            fontWeight: 600,
-                            borderRadius: "8px",
-                            boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-                            fontSize: "0.75rem",
-                          }}
-                        />
-                      </motion.div>
-                    </TableCell>
-                    <TableCell
-                      align="center"
-                      sx={{
-                        py: 2,
-                        width: "20%",
-                        minWidth: "150px",
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          gap: 1,
-                          justifyContent: "center",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
                         >
-                          <Tooltip title="Chỉnh sửa">
-                            <Button
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {card.uid || "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "33.33%",
+                          }}
+                        >
+                          <motion.div whileHover={{ scale: 1.05 }}>
+                            <Chip
+                              icon={
+                                <DirectionsCarIcon
+                                  sx={{
+                                    fontSize: "14px !important",
+                                    color: "#e65100 !important",
+                                  }}
+                                />
+                              }
+                              label="Vé lượt"
                               size="small"
-                              startIcon={<CiEdit />}
-                              onClick={() => handleOpenDialog("edit", card)}
                               sx={{
-                                borderRadius: "8px",
-                                textTransform: "none",
+                                backgroundColor: "#fff3e0",
+                                color: "#e65100",
                                 fontWeight: 600,
-                                color: "#ff9800",
+                                borderRadius: "8px",
+                                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
                                 fontSize: "0.75rem",
-                                px: 1.5,
-                                py: 0.5,
-                                transition: "all 0.3s",
-                                "&:hover": {
-                                  bgcolor: "rgba(255, 152, 0, 0.1)",
+                                "& .MuiChip-icon": {
+                                  marginLeft: "8px",
                                 },
                               }}
-                            >
-                              Sửa
-                            </Button>
-                          </Tooltip>
-                        </motion.div>
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
+                            />
+                          </motion.div>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "33.33%",
+                          }}
                         >
-                          <Tooltip title="Xóa">
-                            <Button
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 1,
+                              justifyContent: "center",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <motion.div
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <Tooltip title="Xóa">
+                                <Button
+                                  size="small"
+                                  startIcon={<CiTrash />}
+                                  color="error"
+                                  onClick={() => handleDeleteClick(card.id)}
+                                  sx={{
+                                    borderRadius: "8px",
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    fontSize: "0.75rem",
+                                    px: 1.5,
+                                    py: 0.5,
+                                    transition: "all 0.3s",
+                                    "&:hover": {
+                                      bgcolor: "rgba(244, 67, 54, 0.1)",
+                                    },
+                                  }}
+                                >
+                                  Xóa
+                                </Button>
+                              </Tooltip>
+                            </motion.div>
+                          </Box>
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            fontWeight: 600,
+                            py: 2,
+                            width: "12%",
+                            minWidth: "100px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {card.uid || "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "10%",
+                            minWidth: "80px",
+                          }}
+                        >
+                          <motion.div whileHover={{ scale: 1.05 }}>
+                            <Chip
+                              icon={
+                                <ConfirmationNumberIcon
+                                  sx={{
+                                    fontSize: "14px !important",
+                                    color: "#7b1fa2 !important",
+                                  }}
+                                />
+                              }
+                              label="Vé tháng"
                               size="small"
-                              startIcon={<CiTrash />}
-                              color="error"
-                              onClick={() => handleDeleteClick(card.id)}
                               sx={{
-                                borderRadius: "8px",
-                                textTransform: "none",
+                                backgroundColor: "#f3e5f5",
+                                color: "#7b1fa2",
                                 fontWeight: 600,
+                                borderRadius: "8px",
+                                boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
                                 fontSize: "0.75rem",
-                                px: 1.5,
-                                py: 0.5,
-                                transition: "all 0.3s",
-                                "&:hover": {
-                                  bgcolor: "rgba(244, 67, 54, 0.1)",
+                                "& .MuiChip-icon": {
+                                  marginLeft: "8px",
                                 },
                               }}
+                            />
+                          </motion.div>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "15%",
+                            minWidth: "120px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {card.monthly_user_name || "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "12%",
+                            minWidth: "100px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {card.monthly_user_phone || "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "10%",
+                            minWidth: "100px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {card.updated_at
+                              ? (() => {
+                                  const date = new Date(card.updated_at);
+                                  const day = String(date.getDate()).padStart(
+                                    2,
+                                    "0"
+                                  );
+                                  const month = String(
+                                    date.getMonth() + 1
+                                  ).padStart(2, "0");
+                                  const year = date.getFullYear();
+                                  return `${day}/${month}/${year}`;
+                                })()
+                              : "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "10%",
+                            minWidth: "100px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {card.monthly_user_expiry
+                              ? (() => {
+                                  const date = new Date(
+                                    card.monthly_user_expiry
+                                  );
+                                  const day = String(date.getDate()).padStart(
+                                    2,
+                                    "0"
+                                  );
+                                  const month = String(
+                                    date.getMonth() + 1
+                                  ).padStart(2, "0");
+                                  const year = date.getFullYear();
+                                  return `${day}/${month}/${year}`;
+                                })()
+                              : "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "10%",
+                            minWidth: "100px",
+                          }}
+                        >
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {card.monthly_user_address || "N/A"}
+                          </Typography>
+                        </TableCell>
+                        <TableCell
+                          align="center"
+                          sx={{
+                            py: 2,
+                            width: "27%",
+                            minWidth: "200px",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              gap: 1,
+                              justifyContent: "center",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <motion.div
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
                             >
-                              Xóa
-                            </Button>
-                          </Tooltip>
-                        </motion.div>
-                      </Box>
-                    </TableCell>
+                              <Tooltip title="Xóa">
+                                <Button
+                                  size="small"
+                                  startIcon={<CiTrash />}
+                                  color="error"
+                                  onClick={() => handleDeleteClick(card.id)}
+                                  sx={{
+                                    borderRadius: "8px",
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    fontSize: "0.75rem",
+                                    px: 1.5,
+                                    py: 0.5,
+                                    transition: "all 0.3s",
+                                    "&:hover": {
+                                      bgcolor: "rgba(244, 67, 54, 0.1)",
+                                    },
+                                  }}
+                                >
+                                  Xóa
+                                </Button>
+                              </Tooltip>
+                            </motion.div>
+                          </Box>
+                        </TableCell>
+                      </>
+                    )}
                   </motion.tr>
                 ))}
               </TableBody>
@@ -908,221 +1057,6 @@ export default function CardManagement() {
         </CardContent>
       </MotionCard>
 
-      {/* Main Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ fontWeight: 700, fontSize: "1.2rem" }}>
-          {dialogType === "add" ? "Đăng ký vé xe mới" : "Chỉnh sửa vé xe"}
-        </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <form onSubmit={handleSubmit(handleSaveCard)}>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Controller
-                name="cardNumber"
-                control={control}
-                rules={{ required: "Số thẻ không được để trống" }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Số thẻ"
-                      error={!!error}
-                      helperText={error?.message}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        trigger("cardNumber");
-                      }}
-                      onBlur={() => trigger("cardNumber")}
-                      sx={{
-                        marginTop: "10px",
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                          },
-                          "&.Mui-focused": {
-                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-                )}
-              />
-              <Controller
-                name="price"
-                control={control}
-                rules={{
-                  required: "Giá vé không được để trống",
-                  pattern: {
-                    value: /^\d+$/,
-                    message: "Giá vé phải là số dương",
-                  },
-                }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <TextField
-                      {...field}
-                      fullWidth
-                      label="Giá vé (VND)"
-                      type="number"
-                      error={!!error}
-                      helperText={error?.message}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        trigger("price");
-                      }}
-                      onBlur={() => trigger("price")}
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "&:hover": {
-                            boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                          },
-                          "&.Mui-focused": {
-                            boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                          },
-                        },
-                      }}
-                    />
-                  </motion.div>
-                )}
-              />
-              <Controller
-                name="type"
-                control={control}
-                rules={{ required: "Loại vé không được để trống" }}
-                render={({ field, fieldState: { error } }) => (
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                  >
-                    <FormControl fullWidth error={!!error}>
-                      <InputLabel id="type-select-label">Loại vé</InputLabel>
-                      <Select
-                        labelId="type-select-label"
-                        id="type-select"
-                        {...field}
-                        label="Loại vé"
-                        onChange={(e) => {
-                          field.onChange(e);
-                          trigger("type");
-                        }}
-                        onBlur={() => trigger("type")}
-                        sx={{
-                          borderRadius: "10px",
-                          transition: "all 0.3s",
-                          "& .MuiOutlinedInput-root": {
-                            transition: "all 0.3s",
-                            "&:hover": {
-                              boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                            },
-                            "&.Mui-focused": {
-                              boxShadow: "0 4px 12px rgba(30, 136, 229, 0.25)",
-                            },
-                          },
-                        }}
-                      >
-                        <MenuItem value={0}>Vé lượt</MenuItem>
-                        <MenuItem value={1}>Vé tháng</MenuItem>
-                      </Select>
-                      {error && (
-                        <Typography
-                          variant="caption"
-                          color="error"
-                          sx={{ mt: 0.5, ml: 1.5 }}
-                        >
-                          {error.message}
-                        </Typography>
-                      )}
-                    </FormControl>
-                  </motion.div>
-                )}
-              />
-              {dialogType === "edit" && (
-                <Controller
-                  name="isActive"
-                  control={control}
-                  render={({ field }) => (
-                    <motion.div
-                      whileHover={{ scale: 1.02 }}
-                      transition={{ type: "spring", stiffness: 300 }}
-                    >
-                      <FormControl fullWidth>
-                        <InputLabel id="status-select-label">
-                          Trạng thái
-                        </InputLabel>
-                        <Select
-                          labelId="status-select-label"
-                          id="status-select"
-                          {...field}
-                          label="Trạng thái"
-                          sx={{
-                            borderRadius: "10px",
-                            transition: "all 0.3s",
-                            "& .MuiOutlinedInput-root": {
-                              transition: "all 0.3s",
-                              "&:hover": {
-                                boxShadow: "0 2px 8px rgba(30, 136, 229, 0.15)",
-                              },
-                              "&.Mui-focused": {
-                                boxShadow:
-                                  "0 4px 12px rgba(30, 136, 229, 0.25)",
-                              },
-                            },
-                          }}
-                        >
-                          <MenuItem value={true}>Hoạt động</MenuItem>
-                          <MenuItem value={false}>Không hoạt động</MenuItem>
-                        </Select>
-                      </FormControl>
-                    </motion.div>
-                  )}
-                />
-              )}
-            </Box>
-          </form>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCloseDialog} sx={{ textTransform: "none" }}>
-            Hủy
-          </Button>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <Button
-              onClick={handleSubmit(handleSaveCard)}
-              variant="contained"
-              disabled={!isValid}
-              sx={{
-                background: isValid
-                  ? "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)"
-                  : "rgba(0, 0, 0, 0.12)",
-                textTransform: "none",
-                fontWeight: 600,
-                "&:disabled": {
-                  color: "rgba(0, 0, 0, 0.26)",
-                  backgroundColor: "rgba(0, 0, 0, 0.12)",
-                },
-              }}
-            >
-              {dialogType === "add" ? "Đăng ký" : "Cập nhật"}
-            </Button>
-          </motion.div>
-        </DialogActions>
-      </Dialog>
-
       <Dialog
         open={deleteConfirmDialog}
         onClose={() => setDeleteConfirmDialog(false)}
@@ -1153,7 +1087,7 @@ export default function CardManagement() {
             <Typography color="textSecondary">
               Vé xe:{" "}
               <strong>
-                {cards.find((c) => c.id === cardToDelete)?.cardNumber}
+                {cards.find((c) => c.id === cardToDelete)?.uid || "N/A"}
               </strong>
             </Typography>
           </DialogContent>
@@ -1169,12 +1103,13 @@ export default function CardManagement() {
                 onClick={handleConfirmDelete}
                 variant="contained"
                 color="error"
+                disabled={refreshing}
                 sx={{
                   textTransform: "none",
                   fontWeight: 600,
                 }}
               >
-                Xóa
+                {refreshing ? "Đang xóa..." : "Xóa"}
               </Button>
             </motion.div>
           </DialogActions>

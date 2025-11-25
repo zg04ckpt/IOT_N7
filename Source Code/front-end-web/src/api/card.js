@@ -1,53 +1,52 @@
 import axios from "../utils/axios";
 import { endpoints } from "../constants/apiEndpoints";
 
-export const getAllCards = async () => {
-  const URL = endpoints.cards;
-  const res = await axios.get(URL);
-  return res;
+export const getAllCards = async (page = 1, size = 1000) => {
+  const URL = `${endpoints.card.root}?page=${page}&size=${size}`;
+  const response = await axios.get(URL);
+  return response.data;
 };
 
 export const createCard = async (data) => {
-  const URL = endpoints.cards;
-  const res = await axios.post(URL, {
-    cardNumber: data.cardNumber,
-    price: data.price,
-    type: data.type,
-  });
-  return res;
+  const URL = `${endpoints.card.root}`;
+  const response = await axios.post(URL, data);
+  return response.data;
 };
 
-export const updateCard = async (data, id) => {
-  const URL = `${endpoints.cards}/${id}`;
-  const res = await axios.put(URL, {
-    cardNumber: data.cardNumber,
-    price: data.price,
-    type: data.type,
-    isActive: data.isActive,
-  });
-  return res;
+export const registerMonthlyCard = async (id, data) => {
+  const URL = `${endpoints.card.registerMonthlyCard(id)}`;
+  const response = await axios.put(URL, data);
+  return response.data;
+};
+
+export const unregisterMonthlyCard = async (id) => {
+  const URL = `${endpoints.card.unregisterMonthlyCard(id)}`;
+  const response = await axios.put(URL);
+  return response.data;
 };
 
 export const getCardById = async (id) => {
-  const URL = `${endpoints.cards}/${id}`;
-  const res = await axios.get(URL);
-  return res;
+  const URL = `${endpoints.card.getById(id)}`;
+  const response = await axios.get(URL);
+  return response.data;
 };
 
 export const deleteCard = async (id) => {
-  const URL = `${endpoints.cards}/${id}`;
-  const res = await axios.delete(URL);
-  return res;
+  const URL = `${endpoints.card.deleteById(id)}`;
+  const response = await axios.delete(URL);
+  return response.data;
 };
 
-export const updatePriceAllCards = async (data) => {
-  const URL = `${endpoints.cards}/update-all-price`;
-  const res = await axios.post(URL, data);
-  return res;
+export const getCardByUid = async (uid) => {
+  const URL = `${endpoints.card.getByUid(uid)}`;
+  const response = await axios.get(URL);
+  return response.data;
+};
+
+export const updateCard = async (id, data) => {
+  return true;
 };
 
 export const getAvailableCards = async () => {
-  const URL = `${endpoints.cards}/available`;
-  const res = await axios.get(URL);
-  return res;
+  return true;
 };

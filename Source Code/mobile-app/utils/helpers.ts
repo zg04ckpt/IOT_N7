@@ -49,6 +49,38 @@ export const formatDate = (dateString: string): string => {
   });
 };
 
+export const formatDateTime = (
+  dateString: string | null | undefined
+): string => {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  return date.toLocaleString("vi-VN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+};
+
+export const calculateDuration = (
+  checkIn: string,
+  checkOut?: string | null
+): string => {
+  if (!checkIn) return "-";
+  if (!checkOut) return "Đang gửi";
+
+  const start = new Date(checkIn);
+  const end = new Date(checkOut);
+  const diffMs = end.getTime() - start.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  const diffSeconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+  return `${diffHours}h ${diffMinutes}m ${diffSeconds}s`;
+};
+
 export const getCardTypeText = (cardType: number): string => {
   return cardType === 1 ? "Vé tháng" : "Vé thường";
 };
@@ -62,4 +94,22 @@ export const getStatusColor = (status: string): string => {
     default:
       return "#757575";
   }
+};
+
+export const calculateDaysRemaining = (
+  expiryDate: string | null | undefined
+): number | null => {
+  if (!expiryDate) return null;
+  const expiry = new Date(expiryDate);
+  const now = new Date();
+  const diffTime = expiry.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 0;
+};
+
+export const formatDaysRemaining = (days: number | null): string => {
+  if (days === null) return "-";
+  if (days === 0) return "Đã hết hạn";
+  if (days === 1) return "1 ngày";
+  return `${days} ngày`;
 };
