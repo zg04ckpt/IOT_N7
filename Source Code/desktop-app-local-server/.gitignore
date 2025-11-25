@@ -1,0 +1,44 @@
+# Documentation (có thể bỏ ignore nếu muốn commit docs)
+# CHECKLIST.md
+# COMPARISON_EXAMPLE.md
+# DIAGRAMS.md
+# MULTITHREADING_DOC.md
+# README_MULTITHREADING.md
+# USAGE_GUIDE.md
+# SETUP_COMPLETE.md
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Model files (thường rất lớn)
+ai/
+ai/*.pt
+ai/*.pth
+ai/*.onnx
+ai/*.weights
+
+# Test images và temporary files
+captured_images/
+*.jpg
+*.png
+*.jpeg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

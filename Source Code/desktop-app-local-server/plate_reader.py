@@ -11,7 +11,9 @@ Note: directory name follows your request (`proccessing_images`).
 import os
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import cv2
 import numpy as np
@@ -24,8 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 class PlateReader:
-    def __init__(self, lang_list=('en',), gpu=False):
-        """Initialize EasyOCR reader and prepare debug directory."""
+    def __init__(self, lang_list=('en',), gpu=False, num_threads=5):
+        """Initialize EasyOCR reader and prepare debug directory.
+        
+        Args:
+            lang_list: Languages for OCR
+            gpu: Use GPU for OCR
+            num_threads: Number of parallel threads for multi-threaded reading (default: 5)
+        """
         try:
             logger.info("Initializing EasyOCR...")
             self.ocr = Reader(list(lang_list), gpu=gpu)
@@ -38,6 +46,9 @@ class PlateReader:
         base = os.path.dirname(os.path.dirname(__file__))
         self.debug_dir = os.path.join(base, 'temps', 'proccessing_images')
         os.makedirs(self.debug_dir, exist_ok=True)
+        
+        # Multi-threading configuration
+        self.num_threads = num_threads
 
     def _save_step(self, img: np.ndarray, step: str) -> str:
         """Save an intermediate image and return the filepath.
@@ -94,7 +105,10 @@ class PlateReader:
         return gray, saved
 
     def read_plate_with_frame(self, image_frame: np.ndarray, save_steps: bool = True) -> Dict[str, Any]:
-        """Read text from a plate image frame. Saves preprocessing steps when requested.
+        """Read text from a plate image frame using multi-threading with voting mechanism.
+        
+        Runs OCR multiple times in parallel and selects the most common result.
+        Keeps the same input/output interface as before.
 
         Returns a dict with keys: success, text, confidence, error, debug_paths
         """
@@ -112,10 +126,9 @@ class PlateReader:
             if processed is None:
                 return {'success': False, 'text': 'N/A', 'confidence': 0.0, 'error': 'Preprocessing failed', 'debug_paths': saved}
 
-            # EasyOCR expects either path or numpy image; we pass the image directly
-            results = self.ocr.readtext(processed, detail=1, paragraph=False)
-
-            text, confidence = self._process_results(results)
+            # Multi-threaded OCR with voting mechanism
+            text, confidence = self._read_with_voting(processed)
+            
             success = (text != 'N/A' and confidence > 0)
             error_msg = None
             if not success:
@@ -138,6 +151,63 @@ class PlateReader:
                 'error': str(e),
                 'debug_paths': {}
             }
+    
+    def _read_with_voting(self, processed_image: np.ndarray) -> Tuple[str, float]:
+        """Run OCR multiple times in parallel and vote for the most common result.
+        
+        Args:
+            processed_image: Preprocessed plate image
+            
+        Returns:
+            Tuple of (most_common_text, average_confidence)
+        """
+        def single_ocr_read(img_copy: np.ndarray, thread_id: int) -> Tuple[str, float]:
+            """Single OCR read operation for parallel execution."""
+            try:
+                results = self.ocr.readtext(img_copy, detail=1, paragraph=False)
+                text, conf = self._process_results(results)
+                logger.info(f"Thread {thread_id}: text='{text}', conf={conf:.2f}")
+                return text, conf
+            except Exception as e:
+                logger.error(f"Thread {thread_id} error: {e}")
+                return "N/A", 0.0
+        
+        # Run OCR in parallel threads
+        results_list: List[Tuple[str, float]] = []
+        
+        with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
+            # Submit all tasks
+            futures = {
+                executor.submit(single_ocr_read, processed_image.copy(), i): i 
+                for i in range(self.num_threads)
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    results_list.append(result)
+                except Exception as e:
+                    logger.error(f"Thread execution error: {e}")
+        
+        # Filter out N/A results
+        valid_results = [(text, conf) for text, conf in results_list if text != 'N/A']
+        
+        if not valid_results:
+            return "N/A", 0.0
+        
+        # Voting mechanism: select the most common text
+        texts = [text for text, _ in valid_results]
+        text_counter = Counter(texts)
+        most_common_text, count = text_counter.most_common(1)[0]
+        
+        # Calculate average confidence for the most common text
+        confidences = [conf for text, conf in valid_results if text == most_common_text]
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+        
+        logger.info(f"Voting result: '{most_common_text}' (appeared {count}/{len(texts)} times, avg_conf={avg_confidence:.2f})")
+        
+        return most_common_text, avg_confidence
 
     def _process_results(self, results) -> Tuple[str, float]:
         """Process EasyOCR results and return combined text and average confidence."""
