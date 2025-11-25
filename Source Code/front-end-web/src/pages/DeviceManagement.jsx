@@ -134,6 +134,20 @@ export default function DeviceManagement() {
     setPage(0);
   };
 
+  // Helper function to normalize status
+  const normalizeStatus = (status) => {
+    if (!status) return "offline";
+    return String(status).toLowerCase().trim();
+  };
+
+  // Helper function to get status label
+  const getStatusLabel = (status) => {
+    const normalized = normalizeStatus(status);
+    if (normalized === "running") return "Hoạt động";
+    if (normalized === "updating") return "Đang cập nhật";
+    return "Offline";
+  };
+
   // Filter data ở frontend (có thể chuyển sang backend sau nếu cần)
   const filteredData = devices.filter((device) => {
     const matchName = device.name
@@ -141,12 +155,7 @@ export default function DeviceManagement() {
       .includes(searchName.toLowerCase());
 
     // Map status từ backend sang label hiển thị
-    const statusLabel =
-      device.status === "running"
-        ? "Hoạt động"
-        : device.status === "updating"
-        ? "Đang cập nhật"
-        : "Offline";
+    const statusLabel = getStatusLabel(device.status);
 
     const matchStatus = filterStatus === "all" || statusLabel === filterStatus;
 
@@ -506,13 +515,17 @@ export default function DeviceManagement() {
           },
           {
             label: "Hoạt động",
-            value: devices.filter((d) => d.status === "running").length,
+            value: devices.filter(
+              (d) => normalizeStatus(d.status) === "running"
+            ).length,
             color: "#4caf50",
             delay: 0.2,
           },
           {
             label: "Offline",
-            value: devices.filter((d) => d.status === "offline").length,
+            value: devices.filter(
+              (d) => normalizeStatus(d.status) === "offline"
+            ).length,
             color: "#f44336",
             delay: 0.3,
           },
@@ -888,25 +901,19 @@ export default function DeviceManagement() {
                     >
                       <motion.div whileHover={{ scale: 1.05 }}>
                         <Chip
-                          label={
-                            device.status === "running"
-                              ? "Hoạt động"
-                              : device.status === "updating"
-                              ? "Đang cập nhật"
-                              : "Offline"
-                          }
+                          label={getStatusLabel(device.status)}
                           size="small"
                           sx={{
                             backgroundColor:
-                              device.status === "running"
+                              normalizeStatus(device.status) === "running"
                                 ? "#dbfde5"
-                                : device.status === "updating"
+                                : normalizeStatus(device.status) === "updating"
                                 ? "#fff3cd"
                                 : "#fdeaea",
                             color:
-                              device.status === "running"
+                              normalizeStatus(device.status) === "running"
                                 ? "#036333"
-                                : device.status === "updating"
+                                : normalizeStatus(device.status) === "updating"
                                 ? "#856404"
                                 : "#d32f2f",
                             fontWeight: 600,

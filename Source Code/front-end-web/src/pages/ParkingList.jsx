@@ -278,12 +278,6 @@ export default function ParkingList() {
           return `${diffHours}h ${diffMinutes}m ${diffSeconds}s`;
         };
 
-        const formatPrice = (price, isMonthlyCard) => {
-          if (isMonthlyCard) return "-";
-          if (!price || price === 0) return "-";
-          return `${price.toLocaleString("vi-VN")} VND`;
-        };
-
         const hasCheckout =
           item.status === "end" && item.check_out && item.check_out_image_url;
         const status = hasCheckout ? "Đã thanh toán" : "Đang gửi";
@@ -293,6 +287,15 @@ export default function ParkingList() {
         const ticketType = isMonthlyCard ? "Vé tháng" : "Vé lượt";
         const invoiceAmount = invoices[item.id];
 
+        const formatPrice = (price, isMonthlyCard, hasCheckout) => {
+          if (isMonthlyCard) {
+            // Nếu đã thanh toán thì hiển thị 0 VND, còn đang gửi thì hiển thị "-"
+            return hasCheckout ? "0 VND" : "-";
+          }
+          if (!price || price === 0) return "-";
+          return `${price.toLocaleString("vi-VN")} VND`;
+        };
+
         return {
           STT: index + 1,
           "ID thẻ": item.card_id || "N/A",
@@ -301,7 +304,7 @@ export default function ParkingList() {
           "Giờ vào": formatDate(item.check_in),
           "Giờ ra": formatDate(item.check_out),
           "Thời gian": calculateDuration(item.check_in, item.check_out),
-          Tiền: formatPrice(invoiceAmount, isMonthlyCard),
+          Tiền: formatPrice(invoiceAmount, isMonthlyCard, hasCheckout),
           "Trạng thái": status,
           "Link ảnh vào": item.check_in_image_url || "-",
           "Link ảnh ra": item.check_out_image_url || "-",
@@ -761,15 +764,6 @@ export default function ParkingList() {
                       return `${diffHours}h ${diffMinutes}m ${diffSeconds}s`;
                     };
 
-                    const formatPrice = (price, ticketType) => {
-                      if (ticketType === "Vé tháng") return "-";
-                      if (!price || price === 0) return "-";
-                      return new Intl.NumberFormat("vi-VN", {
-                        style: "currency",
-                        currency: "VND",
-                      }).format(price);
-                    };
-
                     // Check if session is truly completed
                     const hasCheckout =
                       row.status === "end" &&
@@ -781,6 +775,23 @@ export default function ParkingList() {
                     const isMonthlyCard = card?.type === "monthly";
                     const ticketType = isMonthlyCard ? "Vé tháng" : "Vé lượt";
                     const invoiceAmount = invoices[row.id];
+
+                    const formatPrice = (price, ticketType, hasCheckout) => {
+                      if (ticketType === "Vé tháng") {
+                        // Nếu đã thanh toán thì hiển thị 0₫, còn đang gửi thì hiển thị "-"
+                        return hasCheckout
+                          ? new Intl.NumberFormat("vi-VN", {
+                              style: "currency",
+                              currency: "VND",
+                            }).format(0)
+                          : "-";
+                      }
+                      if (!price || price === 0) return "-";
+                      return new Intl.NumberFormat("vi-VN", {
+                        style: "currency",
+                        currency: "VND",
+                      }).format(price);
+                    };
 
                     // Helper to get image URL (handle absolute and relative URLs)
                     const getImageUrl = (imageUrl) => {
@@ -1051,7 +1062,7 @@ export default function ParkingList() {
                           {calculateDuration(row.check_in, row.check_out)}
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
-                          {formatPrice(invoiceAmount, ticketType)}
+                          {formatPrice(invoiceAmount, ticketType, hasCheckout)}
                         </TableCell>
                         <TableCell align="center" sx={{ py: 2 }}>
                           <Chip

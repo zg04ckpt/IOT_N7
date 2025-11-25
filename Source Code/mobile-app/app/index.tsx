@@ -453,7 +453,9 @@ export default function HomeScreen() {
                               <Text
                                 style={[styles.detailValue, styles.amountText]}
                               >
-                                {invoiceAmount
+                                {isMonthlyCard
+                                  ? formatCurrency(0)
+                                  : invoiceAmount
                                   ? formatCurrency(invoiceAmount)
                                   : "-"}
                               </Text>

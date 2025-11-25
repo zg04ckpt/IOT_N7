@@ -320,7 +320,7 @@ export default function UserManagement() {
             Quản lý người dùng
           </Typography>
           <Typography color="textSecondary">
-            Quản lý tài khoản người dùng trong hệ thống
+            Quản lý danh sách người dùng trong hệ thống
           </Typography>
         </Box>
         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
