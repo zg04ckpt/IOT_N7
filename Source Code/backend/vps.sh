@@ -1,4 +1,5 @@
 #!/bin/bash
+
 for f in *.tar; do
     docker load -i "$f"
 done
