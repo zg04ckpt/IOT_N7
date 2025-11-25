@@ -82,6 +82,14 @@ class InvoiceRepo {
         );
         return rows[0].count > 0;
     }
+
+    async findBySessionId(sessionId) {
+        const [rows] = await db.execute(
+            'SELECT * FROM invoices WHERE session_id = ?',
+            [sessionId]
+        );
+        return rows[0] ? new Invoice(rows[0]) : null;
+    }
 }
 
 export default new InvoiceRepo();

@@ -32,7 +32,7 @@ class UserRepo {
         const { email, role, password, phone, plate } = userData;
         const [result] = await db.execute(
             'INSERT INTO users (email, role, password, phone, plate) VALUES (?, ?, ?, ?, ?)',
-            [email, role, password, phone, plate]
+            [email, role, password, phone, plate ?? null]
         );
         return await this.findById(result.insertId);
     }
