@@ -1,0 +1,92 @@
+.git
+node_modules
+npm-debug.log
+.env
+.env.local
+*.tar
+temp/
+uploads/
+uploads/**
+firmware_versions/
+firmware_versions/**
+tools/
+tools/**
+test/
+*.log
+dist/
+coverage/
+.vscode/
+iot-backend.tar
+iot-mysql.tar# ============================
+# Node.js project dockerignore
+# ============================
+
+# Node modules & logs
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Dependency directories
+bower_components
+jspm_packages
+
+# Build & output directories
+dist
+build
+coverage
+.next
+.out
+.tmp
+.cache
+.terraform
+
+# Environment & sensitive files
+.env
+.env.*
+!.env.example
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+
+# IDE folders
+.vscode
+.idea
+*.swp
+
+# Git & version control
+.git
+.gitignore
+.gitattributes
+
+# Docker files not needed
+docker-compose.yml
+Dockerfile*
+.dockerignore
+.docker
+
+# Temporary files
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Local configs
+*.local.*
+*.config.js
+*.config.ts
+
+# TypeScript output
+*.tsbuildinfo
+
+# Tests (nếu build production)
+tests
+test
+__tests__
+
+firmware_versions
+temp
+tools
+uploads
+test-client.html

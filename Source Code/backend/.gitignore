@@ -32,3 +32,8 @@ arduino_data/
 # Test files (optional - xóa dòng này nếu muốn commit test files)
 test.js
 testf/
+
+test-client.html
+
+*.tar
+services.txt

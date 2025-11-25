@@ -60,7 +60,8 @@ class UserController {
                 httpOnly: true,     
                 secure: process.env.NODE_ENV == 'development'? false:true,      
                 sameSite: 'strict', 
-                maxAge: 24 * 60 * 60 * 1000 // 24h
+                maxAge: 24 * 60 * 60 * 1000, // 24h,
+                domain: process.env.HOST_DOMAIN
             });
             
             return successResponse(res, 'Đăng nhập thành công', result.user);
