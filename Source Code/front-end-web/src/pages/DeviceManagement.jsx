@@ -277,7 +277,12 @@ export default function DeviceManagement() {
         if (response.data.success) {
           await fetchDevices();
           handleCloseDialog();
-          showSuccess("Thêm thiết bị thành công!");
+          const deviceKey = response.data.data?.key;
+          if (deviceKey) {
+            showSuccess(`Thêm thiết bị thành công!\nKey: ${deviceKey}`, 6000);
+          } else {
+            showSuccess("Thêm thiết bị thành công!");
+          }
         }
       } else if (dialogType === "updateVersion") {
         // Cập nhật version firmware
