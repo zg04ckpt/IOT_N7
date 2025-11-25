@@ -34,3 +34,6 @@ test.js
 testf/
 
 test-client.html
+
+*.tar
+services.txt
