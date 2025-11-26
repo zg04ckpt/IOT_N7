@@ -8,8 +8,6 @@ from app.gui.login_window import LoginWindow
 
 def main():
     app = QApplication(sys.argv)
-
-    # Use qasync QEventLoop so async slots/coroutines run correctly
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
@@ -21,7 +19,6 @@ def main():
             loop.run_forever()
         except KeyboardInterrupt:
             pass
-
 
 if __name__ == "__main__":
     main()
