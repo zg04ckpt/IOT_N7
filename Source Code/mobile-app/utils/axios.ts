@@ -1,4 +1,5 @@
-import axios, { AxiosInstance } from "axios";
+import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BASE_URL = "http://10.0.2.2:4000/api";
 
@@ -9,5 +10,23 @@ const axiosInstance: AxiosInstance = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+// Add token to request headers
+axiosInstance.interceptors.request.use(
+  async (config: InternalAxiosRequestConfig) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error("Error getting token from storage:", error);
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 export default axiosInstance;
