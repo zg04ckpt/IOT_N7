@@ -2,12 +2,15 @@
 Module chuyên dụng để detect và cắt vùng biển số xe từ ảnh đầy đủ
 Sử dụng YOLO model để detect biển số và trả về ảnh đã cắt
 Interface đơn giản: chỉ một hàm public duy nhất
+Hỗ trợ đa luồng với cơ chế voting để chọn kết quả tốt nhất
 """
 
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import os
 
@@ -17,16 +20,18 @@ logger = logging.getLogger(__name__)
 
 
 class PlateDetector:
-    def __init__(self, model_path: str = 'ai/model.pt', conf_threshold: float = 0.3):
+    def __init__(self, model_path: str = 'ai/model.pt', conf_threshold: float = 0.3, num_threads: int = 5):
         """
         Khởi tạo PlateDetector
         
         Args:
             model_path (str): Đường dẫn đến model YOLO
             conf_threshold (float): Ngưỡng confidence để detect
+            num_threads (int): Số luồng xử lý song song (default: 5)
         """
         self._model_path = model_path
         self._conf_threshold = conf_threshold
+        self.num_threads = num_threads
         
         # Kiểm tra file model
         if not os.path.exists(model_path):
@@ -41,7 +46,10 @@ class PlateDetector:
             raise
         
     def detect_plate_with_frame(self, frame) -> Dict[str, Any]:
-        """ Cắt biển số từ ảnh """
+        """Cắt biển số từ ảnh sử dụng đa luồng với cơ chế voting.
+        
+        Giữ nguyên tham số đầu vào và đầu ra như cũ.
+        """
         try:
             if frame is None:
                 return {
@@ -52,8 +60,8 @@ class PlateDetector:
                     'error': f"Không thể đọc ảnh"
                 }
             
-            # Detect và cắt biển số
-            result = self._detect_and_crop_best_plate(frame)
+            # Detect và cắt biển số với đa luồng + voting
+            result = self._detect_with_voting(frame)
             result['success'] = result['cropped_plate'] is not None
             
             return result
@@ -67,6 +75,132 @@ class PlateDetector:
                 'bbox': None,
                 'error': str(e)
             }
+    
+    def _detect_with_voting(self, image_array: np.ndarray) -> Dict[str, Any]:
+        """Detect biển số sử dụng đa luồng và voting để chọn kết quả tốt nhất.
+        
+        Args:
+            image_array: Ảnh đầu vào
+            
+        Returns:
+            Dict chứa cropped_plate, confidence, bbox, error
+        """
+        def single_detection(img_copy: np.ndarray, thread_id: int) -> Dict[str, Any]:
+            """Single detection operation cho parallel execution."""
+            try:
+                result = self._detect_and_crop_best_plate(img_copy)
+                
+                # Create a hashable key for voting (using bbox as identifier)
+                bbox_key = None
+                if result['bbox'] is not None:
+                    bbox_key = tuple(result['bbox'])
+                
+                logger.info(f"Thread {thread_id}: bbox={bbox_key}, conf={result['confidence']:.2f}")
+                
+                return {
+                    'result': result,
+                    'bbox_key': bbox_key,
+                    'thread_id': thread_id
+                }
+            except Exception as e:
+                logger.error(f"Thread {thread_id} error: {e}")
+                return {
+                    'result': {'cropped_plate': None, 'confidence': 0.0, 'bbox': None, 'error': str(e)},
+                    'bbox_key': None,
+                    'thread_id': thread_id
+                }
+        
+        # Run detection in parallel
+        detection_results: List[Dict[str, Any]] = []
+        
+        with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
+            futures = {
+                executor.submit(single_detection, image_array.copy(), i): i 
+                for i in range(self.num_threads)
+            }
+            
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    detection_results.append(result)
+                except Exception as e:
+                    logger.error(f"Thread execution error: {e}")
+        
+        # Filter valid detections
+        valid_detections = [
+            d for d in detection_results 
+            if d['result']['cropped_plate'] is not None and d['bbox_key'] is not None
+        ]
+        
+        if not valid_detections:
+            return {
+                'cropped_plate': None,
+                'confidence': 0.0,
+                'bbox': None,
+                'error': 'Không tìm thấy biển số nào sau khi thử đa luồng'
+            }
+        
+        # Voting mechanism: Find most common bbox region (with tolerance for slight variations)
+        # Group similar bboxes together
+        bbox_groups = self._group_similar_bboxes(valid_detections)
+        
+        # Select the group with highest total confidence
+        best_group = max(bbox_groups, key=lambda g: sum(d['result']['confidence'] for d in g))
+        
+        # From best group, select detection with highest individual confidence
+        best_detection = max(best_group, key=lambda d: d['result']['confidence'])
+        
+        logger.info(f"Voting result: Selected bbox from thread {best_detection['thread_id']}, "
+                   f"group_size={len(best_group)}/{len(valid_detections)}, "
+                   f"conf={best_detection['result']['confidence']:.2f}")
+        
+        return best_detection['result']
+    
+    def _group_similar_bboxes(self, detections: List[Dict[str, Any]], tolerance: float = 20.0) -> List[List[Dict[str, Any]]]:
+        """Group detections with similar bboxes together.
+        
+        Args:
+            detections: List of detection results
+            tolerance: Maximum distance between bbox centers to be considered similar
+            
+        Returns:
+            List of groups, where each group is a list of similar detections
+        """
+        if not detections:
+            return []
+        
+        groups: List[List[Dict[str, Any]]] = []
+        
+        for detection in detections:
+            bbox = detection['bbox_key']
+            if bbox is None:
+                continue
+            
+            # Calculate bbox center
+            center_x = (bbox[0] + bbox[2]) / 2.0
+            center_y = (bbox[1] + bbox[3]) / 2.0
+            
+            # Try to find existing group
+            added_to_group = False
+            for group in groups:
+                # Compare with first detection in group
+                ref_bbox = group[0]['bbox_key']
+                ref_center_x = (ref_bbox[0] + ref_bbox[2]) / 2.0
+                ref_center_y = (ref_bbox[1] + ref_bbox[3]) / 2.0
+                
+                # Calculate distance between centers
+                distance = np.sqrt((center_x - ref_center_x)**2 + (center_y - ref_center_y)**2)
+                
+                if distance <= tolerance:
+                    group.append(detection)
+                    added_to_group = True
+                    break
+            
+            # Create new group if not added
+            if not added_to_group:
+                groups.append([detection])
+        
+        return groups
     
     def _detect_and_crop_best_plate(self, image_array: np.ndarray) -> Dict[str, Any]:
         """
