@@ -28,9 +28,8 @@ ai/*.weights
 
 # Test images và temporary files
 captured_images/
-*.jpg
-*.png
-*.jpeg
+.jpg
+.png
 
 # IDE
 .vscode/
