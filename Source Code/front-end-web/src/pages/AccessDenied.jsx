@@ -19,7 +19,7 @@ export default function AccessDenied() {
   return (
     <Box
       sx={{
-        minHeight: "calc(100vh - 64px)",
+        minHeight: "100vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -309,25 +309,6 @@ export default function AccessDenied() {
           </Box>
         </motion.div>
 
-        {/* Decorative Text */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2, duration: 0.5 }}
-        >
-          <Typography
-            variant="caption"
-            sx={{
-              fontSize: { xs: "0.75rem", sm: "0.875rem" },
-              color: "#94a3b8",
-              mt: 3,
-              display: "block",
-              fontStyle: "italic",
-            }}
-          >
-            Vui lòng sử dụng menu bên trái để điều hướng
-          </Typography>
-        </motion.div>
       </Box>
     </Box>
   );

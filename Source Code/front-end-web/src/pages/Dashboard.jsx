@@ -347,23 +347,34 @@ export default function Dashboard() {
   }
 
   const summary = invoiceStats.summary || {};
-  const bySource = summary.by_source || [];
+  const allInvoices = invoiceStats.invoices || [];
 
-  // Tìm doanh thu theo nguồn
-  const sessionRevenue =
-    bySource.find((s) => s.source === "SESSION")?.total_amount || 0;
-  const monthlyCardRevenue =
-    bySource.find((s) => s.source === "MONTHLY_CARD")?.total_amount || 0;
-  const sessionCount = bySource.find((s) => s.source === "SESSION")?.count || 0;
-  const monthlyCardCount =
-    bySource.find((s) => s.source === "MONTHLY_CARD")?.count || 0;
+  // Tính toán doanh thu trực tiếp từ danh sách invoices
+  const sessionInvoices = allInvoices.filter(
+    (inv) => (inv.from || "").toUpperCase() === "SESSION"
+  );
+  const monthlyCardInvoices = allInvoices.filter(
+    (inv) => (inv.from || "").toUpperCase() === "MONTHLY_CARD"
+  );
+
+  const sessionRevenue = sessionInvoices.reduce(
+    (sum, inv) => sum + (Number(inv.amount) || 0),
+    0
+  );
+  const monthlyCardRevenue = monthlyCardInvoices.reduce(
+    (sum, inv) => sum + (Number(inv.amount) || 0),
+    0
+  );
+  const sessionCount = sessionInvoices.length;
+  const monthlyCardCount = monthlyCardInvoices.length;
 
   // Filter and sort invoices
   const filteredInvoices = (invoiceStats.invoices || [])
     .filter((invoice) => {
       if (filterType === "all") return true;
-      if (filterType === "SESSION") return invoice.from === "SESSION";
-      if (filterType === "MONTHLY_CARD") return invoice.from === "MONTHLY_CARD";
+      const invoiceFrom = (invoice.from || "").toUpperCase();
+      if (filterType === "SESSION") return invoiceFrom === "SESSION";
+      if (filterType === "MONTHLY_CARD") return invoiceFrom === "MONTHLY_CARD";
       return true;
     })
     .sort((a, b) => {
