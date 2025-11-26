@@ -1,6 +1,9 @@
 ﻿using System.Text;
 using MQTTnet;
+using MQTTnet.Protocol;
 using MQTTnet.Server;
+
+var clientTopics = new Dictionary<string, List<string>>();
 
 var factory = new MqttFactory();
 var options = new MqttServerOptionsBuilder()
@@ -19,17 +22,41 @@ server.ClientConnectedAsync += args => {
 // Xử lý client mất kết nối 
 server.ClientDisconnectedAsync += args => {
     Console.WriteLine($"Client {args.ClientId} đã đóng kết nối");
+
+    // Gửi thong báo mất kết nối tới toàn bộ topic
+    if (clientTopics.TryGetValue(args.ClientId, out var topics))
+    {
+        foreach (var topic in topics)
+        {
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload($"DISCONNECTED-{args.ClientId}")
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce) 
+                .Build();
+
+            server.InjectApplicationMessage(new InjectedMqttApplicationMessage(message));
+        }
+    }
+
     return Task.CompletedTask;
 };
 
 // Xử lý client đăng kí channel 
 server.InterceptingSubscriptionAsync += args => {
     Console.WriteLine($"Client {args.ClientId} đã đăng kí kênh {args.TopicFilter.Topic}");
+
+    // Quản lý topic
+    if (!clientTopics.ContainsKey(args.ClientId))
+        clientTopics[args.ClientId] = new List<string>();
+    clientTopics[args.ClientId].Add(args.TopicFilter.Topic);
+
+    // Không gửi lại message cho chính mình
+    args.TopicFilter.NoLocal = true;
     return Task.CompletedTask;
 };
 
 server.InterceptingPublishAsync += args => {
-    Console.WriteLine($"Yêu cầu public gói tin mới từ {args.ClientId}: {Encoding.UTF8.GetString(args.ApplicationMessage.PayloadSegment.Array)}");
+    Console.WriteLine($"Client {args.ClientId} gửi lên kênh {args.ApplicationMessage.Topic}: {Encoding.UTF8.GetString(args.ApplicationMessage.PayloadSegment.Array)}");
     return Task.CompletedTask;
 };
 

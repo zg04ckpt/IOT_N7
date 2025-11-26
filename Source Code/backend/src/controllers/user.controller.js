@@ -56,13 +56,14 @@ class UserController {
             const result = await userService.login(req.body.email, req.body.password);
             
             // Lưu access token ở cookie
-            res.cookie('access_token', result.token, { 
-                httpOnly: true,     
-                secure: process.env.NODE_ENV == 'development'? false:true,      
-                sameSite: 'strict', 
-                maxAge: 24 * 60 * 60 * 1000, // 24h,
-                domain: process.env.HOST_DOMAIN
-            });
+            const cookieOptions = {
+                httpOnly: true,
+                secure: true,
+                sameSite: 'none',
+                maxAge: 24 * 60 * 60 * 1000, // 24h
+            };
+
+            res.cookie('access_token', result.token, cookieOptions);
             
             return successResponse(res, 'Đăng nhập thành công', result.user);
         } catch (error) {

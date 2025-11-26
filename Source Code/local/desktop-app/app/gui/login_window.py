@@ -143,11 +143,13 @@ class LoginWindow(QMainWindow):
 
         email = self.email_input.text().strip()
         if not email:
+            self.login_button.setText("Đăng nhập")
             self.show_error("Vui lòng điền email")
             return
         
         password = self.password_input.text().strip()
         if not password:
+            self.login_button.setText("Đăng nhập")
             self.show_error("Vui lòng điền mật khẩu")
             return
         

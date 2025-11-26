@@ -1,16 +1,24 @@
-from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, 
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSizePolicy,
                                QHBoxLayout, QLabel, QTabWidget, QFrame, QGridLayout,
-                               QLineEdit, QPushButton, QSpinBox, QProgressBar)
-from PySide6.QtCore import Qt
+                               QLineEdit, QPushButton, QSpinBox, QProgressBar, QStatusBar)
+from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtGui import QFont
+from PySide6.QtGui import QImage, QPixmap
+
+from app.controllers.main_controller import MainController
+from app.models.background_worker import InitMainControllerWorkers, run_in_bg_async
+from app.models.enums import EventType
+from app.utils.window_util import show_error, show_info
 
 class MainWindow(QMainWindow):
+    ui_event_signal = Signal(EventType, object)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Quản lý Xe Ra Vào")
-        self.setGeometry(100, 100, 1200, 700)
-        # Loading overlay (created lazily)
+        self.setGeometry(50, 50, 1200, 700)
+
         self._loading_overlay = None
+        self.controller: MainController = None
         
         # Central widget
         central_widget = QWidget()
@@ -37,7 +45,49 @@ class MainWindow(QMainWindow):
         self.right_panel = self.create_right_panel()
         main_layout.addWidget(self.right_panel, stretch=1)
 
+        # Tạo status bar
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.esp32c3_status_label = QLabel("ESP32C3: Đang kiểm tra kết nối ...")
+        self.esp32cam_status_label = QLabel("ESP32CAM: Đang kiểm tra kết nối ...")
+        self.status_bar.addWidget(self.esp32c3_status_label)
+        self.status_bar.addWidget(self.esp32cam_status_label)
+
+        self._workers = []
+        self.ui_event_signal.connect(self._on_ui_event)
         self.show_loading_overlay("Đang khởi tạo...")
+        self._workers.append(
+            run_in_bg_async(InitMainControllerWorkers, self._on_controller_ready, self.ui_event_signal.emit)
+        )
+
+        self.showMaximized()
+        
+    def _on_controller_ready(self, controller):
+        self.controller = controller
+        self.hide_loading_overlay()
+
+    def _on_ui_event(self, type: EventType, data):
+        match type:
+            case EventType.ESP32C3_CONNECTED:
+                self.esp32c3_status_label.setStyleSheet("color: green;")
+                self.esp32c3_status_label.setText("ESP32C3: Đã kết nối")
+            case EventType.ESP32C3_UID:
+                # show_info(self, "Thẻ mới: " + data)
+                pass
+            case EventType.ESP32C3_DISCONNECTED:
+                self.esp32c3_status_label.setStyleSheet("color: red;")
+                self.esp32c3_status_label.setText("ESP32C3: Mất kết nối")
+            
+            case EventType.ESP32CAM_CONNECTED:
+                self.esp32cam_status_label.setStyleSheet("color: green;")
+                self.esp32cam_status_label.setText("ESP32CAM: Đã kết nối")
+            case EventType.ESP32CAM_DISCONNECTED:
+                self.esp32cam_status_label.setStyleSheet("color: red;")
+                self.esp32cam_status_label.setText("ESP32CAM: Mất kết nối")
+            case EventType.ESP32CAM_RECEIVED_FRAME:
+                self.live_camera.setPixmap(data)
+            case EventType.ESP32CAM_RECEIVED_CAPTURE:
+                self.capture_image.setPixmap(data)
         
     def on_tab_changed(self, index):
         if index == 0:
@@ -71,7 +121,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(status_label)
         
         # Vehicle type
-        vehicle_type = QLabel("XE VÀO")
+        vehicle_type = QLabel("XE RA")
         vehicle_type.setFont(QFont("Arial", 16, QFont.Bold))
         vehicle_type.setAlignment(Qt.AlignCenter)
         vehicle_type.setStyleSheet("background-color: #e8e8e8; padding: 10px; margin: 10px 0;")
@@ -86,6 +136,14 @@ class MainWindow(QMainWindow):
         plate_image.setFixedSize(300, 150)
         plate_image.setStyleSheet("border: 1px solid black; background-color: white;")
         plate_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        pixmap = QPixmap("image.png")
+        scaled_pixmap = pixmap.scaled(
+            300, 150,
+            Qt.AspectRatioMode.KeepAspectRatio,           
+            Qt.TransformationMode.SmoothTransformation  
+        )
+        plate_image.setPixmap(scaled_pixmap)
         layout.addWidget(plate_image, alignment=Qt.AlignmentFlag.AlignHCenter)
         
         # Information grid
@@ -109,13 +167,13 @@ class MainWindow(QMainWindow):
         
         # Entry time
         info_layout.addWidget(QLabel("Giờ vào:"), 3, 0)
-        entry_time = QLabel("19:23 26/12/2025")
+        entry_time = QLabel("19:23 24/12/2025")
         entry_time.setFont(QFont("Arial", 10))
         info_layout.addWidget(entry_time, 3, 1)
         
         # Exit time
         info_layout.addWidget(QLabel("Giờ ra:"), 4, 0)
-        exit_time = QLabel("19:29 26/12/2025")
+        exit_time = QLabel("19:29 24/12/2025")
         exit_time.setFont(QFont("Arial", 10))
         info_layout.addWidget(exit_time, 4, 1)
         
@@ -394,6 +452,8 @@ class MainWindow(QMainWindow):
         live_camera.setStyleSheet("border: 1px solid black; background-color: white;")
         live_camera.setAlignment(Qt.AlignCenter)
         layout.addWidget(live_camera)
+        live_camera.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.live_camera = live_camera
         
         # Captured image
         capture_label = QLabel("Ảnh chụp")
@@ -404,6 +464,8 @@ class MainWindow(QMainWindow):
         capture_image.setStyleSheet("border: 1px solid black; background-color: white;")
         capture_image.setAlignment(Qt.AlignCenter)
         layout.addWidget(capture_image)
+        capture_image.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.capture_image = capture_image
         
         layout.setStretch(1, 1)
         layout.setStretch(3, 1)
