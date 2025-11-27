@@ -5,6 +5,8 @@ class EventType(Enum):
     CHECKED_STATUS = 0,
     STATUS_CHANGED = 1,
     LOADING = 2,
+    SHOW_MESS = 3,
+    RECEIVED_MONTHLY_INFO = 4,
 
     ESP32C3_CONNECTED = 100,
     ESP32C3_UID = 101,

@@ -24,21 +24,83 @@ class MainController:
         self.plate_proccessor = Proccessor()
         self.api = APIClient()
 
-        # Quản lý tất cả threads bằng dict để tránh duplicate
         self._cam_stream_threads = {}
         self._cam_capture_threads = {}
         self._proccess_plate_threads = {}
         self._api_threads = {}
 
-        # URLs
         self.capture_url = None
         self.processing: dict[str, any] = None
+
+
+        self.tab = 'status'
+
+        self.register_data =  {
+            "name": '',
+            "phone": '',
+            "address": '',
+            "months": ''
+        }
+
+
+    def _handler_regiter_monthly(self, uid):
+        get_success, res = self.api.get_card_info(uid)
+        if not get_success:
+            self.on_ui_event(EventType.SHOW_MESS, "Kiểm tra thất bại")
+            return
+        if res['data']['type'] == 'monthly':
+            self.on_ui_event(EventType.SHOW_MESS, "Vé tháng đã đươc đăng kí")
+            return
+        
+        register_suceess, res2 = self.api.register_monthly(
+            res['data']['id'], 
+            name=self.register_data['name'],
+            months=self.register_data['months'],
+            address=self.register_data['address'],
+            phone=self.register_data['phone'],)
+        self.on_ui_event(EventType.SHOW_MESS, res2['message'])
+        
+    def _get_monthly_info(self, uid):
+        get_success, res = self.api.get_card_info(uid)
+        if not get_success:
+            self.on_ui_event(EventType.SHOW_MESS, "Kiểm tra thất bại")
+            return
+        if res['data']['type'] == 'normal':
+            self.on_ui_event(EventType.SHOW_MESS, "Vé tháng chưa đươc đăng kí")
+            return
+        
+        self.on_ui_event(EventType.RECEIVED_MONTHLY_INFO, res['data'])
+
+    def handle_unregister_monthly(self, id):
+        register_suceess, res2 = self.api.unregister_monthly(id)
+        self.on_ui_event(EventType.SHOW_MESS, res2['message'])
+        
+    def _handler_create_new_card(self, uid):
+        register_suceess, res2 = self.api.create_new_card(uid)
+        self.on_ui_event(EventType.SHOW_MESS, res2['message'])
+        
+        
+
+
 
     def _dispatch_message(self, type, message):
         match type:
             case EventType.ESP32C3_CONNECTED:
                 self.on_ui_event(type, None)
             case EventType.ESP32C3_UID:
+
+                if self.tab == 'register':
+                    self._handler_regiter_monthly(uid=message)
+                    return
+                
+                if self.tab == 'unregister':
+                    self._get_monthly_info(uid=message)
+                    return
+                
+                if self.tab == 'create':
+                    self._handler_create_new_card(uid=message)
+                    return
+
                 self.on_ui_event(type, message)
                 self.processing = {}
                 self.processing['uid'] = message
