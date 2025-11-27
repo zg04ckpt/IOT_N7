@@ -9,8 +9,6 @@ uploads/
 uploads/**
 firmware_versions/
 firmware_versions/**
-tools/
-tools/**
 test/
 *.log
 dist/
@@ -87,6 +85,6 @@ __tests__
 
 firmware_versions
 temp
-tools
 uploads
 test-client.html
+tools

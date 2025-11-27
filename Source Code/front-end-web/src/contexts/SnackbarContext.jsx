@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from "react";
-import { Snackbar, Alert, IconButton } from "@mui/material";
+import { Snackbar, Alert, IconButton, Box } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -180,7 +180,15 @@ export const SnackbarProvider = ({ children }) => {
                   </IconButton>
                 }
               >
-                {snackbar.message}
+                <Box
+                  component="div"
+                  sx={{
+                    whiteSpace: "pre-line",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {snackbar.message}
+                </Box>
               </Alert>
             </Snackbar>
           </motion.div>

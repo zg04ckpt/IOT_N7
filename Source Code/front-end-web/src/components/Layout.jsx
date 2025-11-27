@@ -56,6 +56,9 @@ export default function Layout() {
   const [logoutConfirmDialog, setLogoutConfirmDialog] = useState(false);
   const { logout } = useAuth();
 
+  // Check if current route is access-denied
+  const isAccessDeniedPage = location.pathname === "/access-denied";
+
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
   };
@@ -320,101 +323,103 @@ export default function Layout() {
         bgcolor: "background.default",
       }}
     >
-      {/* Drawer */}
-      <Box
-        component="nav"
-        sx={{
-          width: {
-            sm: collapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH,
-          },
-          flexShrink: { sm: 0 },
-          transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          position: "relative",
-        }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            display: { xs: "block", sm: "none" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: DRAWER_WIDTH,
-              bgcolor: "background.paper",
-              borderRight: "1px solid",
-              borderColor: "divider",
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: "none", sm: "block" },
-            "& .MuiDrawer-paper": {
-              boxSizing: "border-box",
-              width: collapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH,
-              bgcolor: "background.paper",
-              borderRight: "1px solid",
-              borderColor: "divider",
-              transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-              overflowX: "hidden",
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
-
-        {/* Collapse Toggle Button - Gắn vào border */}
+      {/* Drawer - Hidden on Access Denied page */}
+      {!isAccessDeniedPage && (
         <Box
+          component="nav"
           sx={{
-            position: "absolute",
-            top: "50%",
-            right: -20,
-            transform: "translateY(-50%)",
-            zIndex: 1300,
-            display: { xs: "none", sm: "block" },
+            width: {
+              sm: collapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH,
+            },
+            flexShrink: { sm: 0 },
+            transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            position: "relative",
           }}
         >
-          <IconButton
-            onClick={handleCollapseToggle}
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={handleDrawerToggle}
+            ModalProps={{ keepMounted: true }}
             sx={{
-              bgcolor: "background.paper",
-              border: "2px solid",
-              borderColor: "divider",
-              width: 40,
-              height: 40,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              "&:hover": {
-                bgcolor: "action.hover",
-                transform: "scale(1.1)",
-                boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+              display: { xs: "block", sm: "none" },
+              "& .MuiDrawer-paper": {
+                boxSizing: "border-box",
+                width: DRAWER_WIDTH,
+                bgcolor: "background.paper",
+                borderRight: "1px solid",
+                borderColor: "divider",
               },
-              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
-            {collapsed ? (
-              <ChevronRightIcon sx={{ fontSize: 20, color: "text.primary" }} />
-            ) : (
-              <ChevronLeftIcon sx={{ fontSize: 20, color: "text.primary" }} />
-            )}
-          </IconButton>
+            {drawer}
+          </Drawer>
+          <Drawer
+            variant="permanent"
+            sx={{
+              display: { xs: "none", sm: "block" },
+              "& .MuiDrawer-paper": {
+                boxSizing: "border-box",
+                width: collapsed ? DRAWER_WIDTH_COLLAPSED : DRAWER_WIDTH,
+                bgcolor: "background.paper",
+                borderRight: "1px solid",
+                borderColor: "divider",
+                transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                overflowX: "hidden",
+              },
+            }}
+            open
+          >
+            {drawer}
+          </Drawer>
+
+          {/* Collapse Toggle Button - Gắn vào border */}
+          <Box
+            sx={{
+              position: "absolute",
+              top: "50%",
+              right: -20,
+              transform: "translateY(-50%)",
+              zIndex: 1300,
+              display: { xs: "none", sm: "block" },
+            }}
+          >
+            <IconButton
+              onClick={handleCollapseToggle}
+              sx={{
+                bgcolor: "background.paper",
+                border: "2px solid",
+                borderColor: "divider",
+                width: 40,
+                height: 40,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                "&:hover": {
+                  bgcolor: "action.hover",
+                  transform: "scale(1.1)",
+                  boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+                },
+                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              }}
+            >
+              {collapsed ? (
+                <ChevronRightIcon sx={{ fontSize: 20, color: "text.primary" }} />
+              ) : (
+                <ChevronLeftIcon sx={{ fontSize: 20, color: "text.primary" }} />
+              )}
+            </IconButton>
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {/* Main Content */}
       <Box
         component="main"
         sx={{
           flex: 1,
-          mt: { xs: 4, sm: 4 },
+          mt: isAccessDeniedPage ? 0 : { xs: 4, sm: 4 },
           bgcolor: "background.default",
           minHeight: "100vh",
           overflow: "auto",

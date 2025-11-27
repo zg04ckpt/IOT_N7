@@ -546,6 +546,7 @@ export default function UserSessionLookup() {
                         width: "100%",
                         flex: "1 !important",
                         maxWidth: "100% !important",
+                        justifyContent: "center",
                       }}
                     >
                       <MotionCard
@@ -649,7 +650,7 @@ export default function UserSessionLookup() {
                               display: "flex",
                               gap: 2.5,
                               flexDirection: { xs: "column", md: "row" },
-                              alignItems: { xs: "stretch", md: "stretch" },
+                              alignItems: { xs: "center", md: "center" },
                             }}
                           >
                             {/* Part 1: Images - 50% width, 2 images side by side */}
@@ -933,101 +934,275 @@ export default function UserSessionLookup() {
                               </Grid>
                             </Box>
 
-                            {/* Part 2: Details - 50% width, divided into 2 columns */}
+                            {/* Part 2: Details - 50% width, single column if active, 2 columns if completed */}
                             <Box
                               sx={{
                                 width: { xs: "100%", md: "50%" },
                                 flexShrink: 0,
                                 display: "flex",
                                 flexDirection: "column",
+                                height: "100%",
+                                justifyContent: isActive ? "center" : "stretch",
+                                alignItems: isActive ? "center" : "stretch",
                               }}
                             >
-                              <Grid
-                                container
-                                spacing={1.5}
-                                sx={{ height: "100%" }}
-                              >
-                                {/* Left Column */}
-                                <Grid item xs={6} sx={{ display: "flex" }}>
-                                  <Box
+                              {isActive ? (
+                                /* Active session: Single column, centered, compact to match image height */
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 1,
+                                    width: "100%",
+                                    maxWidth: "400px",
+                                    height: "100%",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Paper
+                                    elevation={0}
                                     sx={{
+                                      p: { xs: 1.5, sm: 1.75 },
+                                      borderRadius: "12px",
+                                      bgcolor: "#f8fafc",
+                                      border: "1.5px solid #e2e8f0",
+                                      transition: "all 0.3s",
                                       display: "flex",
                                       flexDirection: "column",
-                                      gap: 1.5,
-                                      width: "100%",
-                                      height: "100%",
+                                      "&:hover": {
+                                        borderColor: "#2563eb",
+                                        boxShadow:
+                                          "0 2px 8px rgba(37, 99, 235, 0.1)",
+                                      },
                                     }}
                                   >
-                                    <Paper
-                                      elevation={0}
+                                    <Box
                                       sx={{
-                                        p: { xs: 2, sm: 2.5 },
-                                        borderRadius: "12px",
-                                        bgcolor: "#f8fafc",
-                                        border: "1.5px solid #e2e8f0",
-                                        transition: "all 0.3s",
-                                        flex: 1,
                                         display: "flex",
-                                        flexDirection: "column",
-                                        "&:hover": {
-                                          borderColor: "#2563eb",
-                                          boxShadow:
-                                            "0 2px 8px rgba(37, 99, 235, 0.1)",
-                                        },
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: 1,
                                       }}
                                     >
-                                      <Box
+                                      <AccessTimeIcon
                                         sx={{
+                                          fontSize: { xs: 20, sm: 22 },
+                                          color: "#2563eb",
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                      <Box sx={{ flex: 1 }}>
+                                        <Typography
+                                          variant="caption"
+                                          color="text.secondary"
+                                          sx={{
+                                            display: "block",
+                                            mb: 0.5,
+                                            fontWeight: 600,
+                                            textTransform: "uppercase",
+                                            letterSpacing: "0.5px",
+                                            fontSize: {
+                                              xs: "0.7rem",
+                                              sm: "0.75rem",
+                                            },
+                                          }}
+                                        >
+                                          Thời gian vào
+                                        </Typography>
+                                        <Typography
+                                          variant="body2"
+                                          fontWeight={600}
+                                          sx={{
+                                            fontSize: {
+                                              xs: "0.85rem",
+                                              sm: "0.9rem",
+                                            },
+                                            lineHeight: 1.3,
+                                          }}
+                                        >
+                                          {formatDateTime(session.check_in)}
+                                        </Typography>
+                                      </Box>
+                                    </Box>
+                                  </Paper>
+
+                                  {isMonthlyCard && (
+                                    <>
+                                      <Paper
+                                        elevation={0}
+                                        sx={{
+                                          p: { xs: 1.5, sm: 1.75 },
+                                          borderRadius: "12px",
+                                          bgcolor: "#f8fafc",
+                                          border: "1.5px solid #e2e8f0",
+                                          transition: "all 0.3s",
                                           display: "flex",
-                                          alignItems: "center",
-                                          justifyContent: "center",
-                                          gap: 1.5,
-                                          height: "100%",
+                                          flexDirection: "column",
+                                          "&:hover": {
+                                            borderColor: "#2563eb",
+                                            boxShadow:
+                                              "0 2px 8px rgba(37, 99, 235, 0.1)",
+                                          },
                                         }}
                                       >
-                                        <AccessTimeIcon
+                                        <Box
                                           sx={{
-                                            fontSize: { xs: 24, sm: 28 },
-                                            color: "#2563eb",
-                                            flexShrink: 0,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: 1,
                                           }}
-                                        />
-                                        <Box sx={{ flex: 1 }}>
-                                          <Typography
-                                            variant="caption"
-                                            color="text.secondary"
+                                        >
+                                          <CreditCardIcon
                                             sx={{
-                                              display: "block",
-                                              mb: 1,
-                                              fontWeight: 600,
-                                              textTransform: "uppercase",
-                                              letterSpacing: "0.5px",
-                                              fontSize: {
-                                                xs: "0.75rem",
-                                                sm: "0.8rem",
-                                              },
+                                              fontSize: { xs: 20, sm: 22 },
+                                              color: "#2563eb",
+                                              flexShrink: 0,
                                             }}
-                                          >
-                                            Thời gian vào
-                                          </Typography>
-                                          <Typography
-                                            variant="body1"
-                                            fontWeight={600}
-                                            sx={{
-                                              fontSize: {
-                                                xs: "0.95rem",
-                                                sm: "1.05rem",
-                                              },
-                                              lineHeight: 1.4,
-                                            }}
-                                          >
-                                            {formatDateTime(session.check_in)}
-                                          </Typography>
+                                          />
+                                          <Box sx={{ flex: 1 }}>
+                                            <Typography
+                                              variant="caption"
+                                              color="text.secondary"
+                                              sx={{
+                                                display: "block",
+                                                mb: 0.5,
+                                                fontWeight: 600,
+                                                textTransform: "uppercase",
+                                                letterSpacing: "0.5px",
+                                                fontSize: {
+                                                  xs: "0.7rem",
+                                                  sm: "0.75rem",
+                                                },
+                                              }}
+                                            >
+                                              Loại vé
+                                            </Typography>
+                                            {loadingCards[session.id] ? (
+                                              <CircularProgress
+                                                size={16}
+                                                sx={{ color: "#2563eb" }}
+                                              />
+                                            ) : (
+                                              <Typography
+                                                variant="body2"
+                                                fontWeight={600}
+                                                sx={{
+                                                  fontSize: {
+                                                    xs: "0.85rem",
+                                                    sm: "0.9rem",
+                                                  },
+                                                  lineHeight: 1.3,
+                                                }}
+                                              >
+                                                Vé tháng
+                                              </Typography>
+                                            )}
+                                          </Box>
                                         </Box>
-                                      </Box>
-                                    </Paper>
+                                      </Paper>
 
-                                    {isMonthlyCard && (
+                                      <Paper
+                                        elevation={0}
+                                        sx={{
+                                          p: { xs: 1.5, sm: 1.75 },
+                                          borderRadius: "12px",
+                                          bgcolor: "#f8fafc",
+                                          border: "1.5px solid #e2e8f0",
+                                          transition: "all 0.3s",
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          "&:hover": {
+                                            borderColor: "#2563eb",
+                                            boxShadow:
+                                              "0 2px 8px rgba(37, 99, 235, 0.1)",
+                                          },
+                                        }}
+                                      >
+                                        <Box
+                                          sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: 1,
+                                          }}
+                                        >
+                                          <CalendarTodayIcon
+                                            sx={{
+                                              fontSize: { xs: 20, sm: 22 },
+                                              color: "#2563eb",
+                                              flexShrink: 0,
+                                            }}
+                                          />
+                                          <Box sx={{ flex: 1 }}>
+                                            <Typography
+                                              variant="caption"
+                                              color="text.secondary"
+                                              sx={{
+                                                display: "block",
+                                                mb: 0.5,
+                                                fontWeight: 600,
+                                                textTransform: "uppercase",
+                                                letterSpacing: "0.5px",
+                                                fontSize: {
+                                                  xs: "0.7rem",
+                                                  sm: "0.75rem",
+                                                },
+                                              }}
+                                            >
+                                              Số ngày còn hiệu lực
+                                            </Typography>
+                                            {loadingCards[session.id] ? (
+                                              <CircularProgress
+                                                size={16}
+                                                sx={{ color: "#2563eb" }}
+                                              />
+                                            ) : (
+                                              <Typography
+                                                variant="body2"
+                                                fontWeight={600}
+                                                sx={{
+                                                  fontSize: {
+                                                    xs: "0.85rem",
+                                                    sm: "0.9rem",
+                                                  },
+                                                  lineHeight: 1.3,
+                                                  color:
+                                                    daysRemaining !== null &&
+                                                    daysRemaining <= 7
+                                                      ? "#DC2626"
+                                                      : "inherit",
+                                                }}
+                                              >
+                                                {formatDaysRemaining(
+                                                  daysRemaining
+                                                )}
+                                              </Typography>
+                                            )}
+                                          </Box>
+                                        </Box>
+                                      </Paper>
+                                    </>
+                                  )}
+                                </Box>
+                              ) : (
+                                /* Completed session: 2 columns layout */
+                                <Grid
+                                  container
+                                  spacing={1.5}
+                                  sx={{ height: "100%" }}
+                                >
+                                  {/* Left Column */}
+                                  <Grid item xs={6} sx={{ display: "flex" }}>
+                                    <Box
+                                      sx={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 1.5,
+                                        width: "100%",
+                                        height: "100%",
+                                      }}
+                                    >
                                       <Paper
                                         elevation={0}
                                         sx={{
@@ -1055,7 +1230,7 @@ export default function UserSessionLookup() {
                                             height: "100%",
                                           }}
                                         >
-                                          <CreditCardIcon
+                                          <AccessTimeIcon
                                             sx={{
                                               fontSize: { xs: 24, sm: 28 },
                                               color: "#2563eb",
@@ -1078,34 +1253,103 @@ export default function UserSessionLookup() {
                                                 },
                                               }}
                                             >
-                                              Loại vé
+                                              Thời gian vào
                                             </Typography>
-                                            {loadingCards[session.id] ? (
-                                              <CircularProgress
-                                                size={20}
-                                                sx={{ color: "#2563eb" }}
-                                              />
-                                            ) : (
-                                              <Typography
-                                                variant="body1"
-                                                fontWeight={600}
-                                                sx={{
-                                                  fontSize: {
-                                                    xs: "0.95rem",
-                                                    sm: "1.05rem",
-                                                  },
-                                                  lineHeight: 1.4,
-                                                }}
-                                              >
-                                                Vé tháng
-                                              </Typography>
-                                            )}
+                                            <Typography
+                                              variant="body1"
+                                              fontWeight={600}
+                                              sx={{
+                                                fontSize: {
+                                                  xs: "0.95rem",
+                                                  sm: "1.05rem",
+                                                },
+                                                lineHeight: 1.4,
+                                              }}
+                                            >
+                                              {formatDateTime(session.check_in)}
+                                            </Typography>
                                           </Box>
                                         </Box>
                                       </Paper>
-                                    )}
 
-                                    {hasCheckout && (
+                                      {isMonthlyCard && (
+                                        <Paper
+                                          elevation={0}
+                                          sx={{
+                                            p: { xs: 2, sm: 2.5 },
+                                            borderRadius: "12px",
+                                            bgcolor: "#f8fafc",
+                                            border: "1.5px solid #e2e8f0",
+                                            transition: "all 0.3s",
+                                            flex: 1,
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            "&:hover": {
+                                              borderColor: "#2563eb",
+                                              boxShadow:
+                                                "0 2px 8px rgba(37, 99, 235, 0.1)",
+                                            },
+                                          }}
+                                        >
+                                          <Box
+                                            sx={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              gap: 1.5,
+                                              height: "100%",
+                                            }}
+                                          >
+                                            <CreditCardIcon
+                                              sx={{
+                                                fontSize: { xs: 24, sm: 28 },
+                                                color: "#2563eb",
+                                                flexShrink: 0,
+                                              }}
+                                            />
+                                            <Box sx={{ flex: 1 }}>
+                                              <Typography
+                                                variant="caption"
+                                                color="text.secondary"
+                                                sx={{
+                                                  display: "block",
+                                                  mb: 1,
+                                                  fontWeight: 600,
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.5px",
+                                                  fontSize: {
+                                                    xs: "0.75rem",
+                                                    sm: "0.8rem",
+                                                  },
+                                                }}
+                                              >
+                                                Loại vé
+                                              </Typography>
+                                              {loadingCards[session.id] ? (
+                                                <CircularProgress
+                                                  size={20}
+                                                  sx={{ color: "#2563eb" }}
+                                                />
+                                              ) : (
+                                                <Typography
+                                                  variant="body1"
+                                                  fontWeight={600}
+                                                  sx={{
+                                                    fontSize: {
+                                                      xs: "0.95rem",
+                                                      sm: "1.05rem",
+                                                    },
+                                                    lineHeight: 1.4,
+                                                  }}
+                                                >
+                                                  Vé tháng
+                                                </Typography>
+                                              )}
+                                            </Box>
+                                          </Box>
+                                        </Paper>
+                                      )}
+
                                       <Paper
                                         elevation={0}
                                         sx={{
@@ -1176,22 +1420,105 @@ export default function UserSessionLookup() {
                                           </Box>
                                         </Box>
                                       </Paper>
-                                    )}
-                                  </Box>
-                                </Grid>
+                                    </Box>
+                                  </Grid>
 
-                                {/* Right Column */}
-                                <Grid item xs={6} sx={{ display: "flex" }}>
-                                  <Box
-                                    sx={{
-                                      display: "flex",
-                                      flexDirection: "column",
-                                      gap: 1.5,
-                                      width: "100%",
-                                      height: "100%",
-                                    }}
-                                  >
-                                    {isMonthlyCard && (
+                                  {/* Right Column */}
+                                  <Grid item xs={6} sx={{ display: "flex" }}>
+                                    <Box
+                                      sx={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 1.5,
+                                        width: "100%",
+                                        height: "100%",
+                                      }}
+                                    >
+                                      {isMonthlyCard && (
+                                        <Paper
+                                          elevation={0}
+                                          sx={{
+                                            p: { xs: 2, sm: 2.5 },
+                                            borderRadius: "12px",
+                                            bgcolor: "#f8fafc",
+                                            border: "1.5px solid #e2e8f0",
+                                            transition: "all 0.3s",
+                                            flex: 1,
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            "&:hover": {
+                                              borderColor: "#2563eb",
+                                              boxShadow:
+                                                "0 2px 8px rgba(37, 99, 235, 0.1)",
+                                            },
+                                          }}
+                                        >
+                                          <Box
+                                            sx={{
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              gap: 1.5,
+                                              height: "100%",
+                                            }}
+                                          >
+                                            <CalendarTodayIcon
+                                              sx={{
+                                                fontSize: { xs: 24, sm: 28 },
+                                                color: "#2563eb",
+                                                flexShrink: 0,
+                                              }}
+                                            />
+                                            <Box sx={{ flex: 1 }}>
+                                              <Typography
+                                                variant="caption"
+                                                color="text.secondary"
+                                                sx={{
+                                                  display: "block",
+                                                  mb: 1,
+                                                  fontWeight: 600,
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.5px",
+                                                  fontSize: {
+                                                    xs: "0.75rem",
+                                                    sm: "0.8rem",
+                                                  },
+                                                }}
+                                              >
+                                                Số ngày còn hiệu lực
+                                              </Typography>
+                                              {loadingCards[session.id] ? (
+                                                <CircularProgress
+                                                  size={20}
+                                                  sx={{ color: "#2563eb" }}
+                                                />
+                                              ) : (
+                                                <Typography
+                                                  variant="body1"
+                                                  fontWeight={600}
+                                                  sx={{
+                                                    fontSize: {
+                                                      xs: "0.95rem",
+                                                      sm: "1.05rem",
+                                                    },
+                                                    lineHeight: 1.4,
+                                                    color:
+                                                      daysRemaining !== null &&
+                                                      daysRemaining <= 7
+                                                        ? "#DC2626"
+                                                        : "inherit",
+                                                  }}
+                                                >
+                                                  {formatDaysRemaining(
+                                                    daysRemaining
+                                                  )}
+                                                </Typography>
+                                              )}
+                                            </Box>
+                                          </Box>
+                                        </Paper>
+                                      )}
+
                                       <Paper
                                         elevation={0}
                                         sx={{
@@ -1219,7 +1546,7 @@ export default function UserSessionLookup() {
                                             height: "100%",
                                           }}
                                         >
-                                          <CalendarTodayIcon
+                                          <AccessTimeIcon
                                             sx={{
                                               fontSize: { xs: 24, sm: 28 },
                                               color: "#2563eb",
@@ -1242,13 +1569,105 @@ export default function UserSessionLookup() {
                                                 },
                                               }}
                                             >
-                                              Số ngày còn hiệu lực
+                                              Thời gian gửi
                                             </Typography>
-                                            {loadingCards[session.id] ? (
-                                              <CircularProgress
-                                                size={20}
-                                                sx={{ color: "#2563eb" }}
-                                              />
+                                            <Typography
+                                              variant="body1"
+                                              fontWeight={600}
+                                              sx={{
+                                                fontSize: {
+                                                  xs: "0.95rem",
+                                                  sm: "1.05rem",
+                                                },
+                                                lineHeight: 1.4,
+                                              }}
+                                            >
+                                              {calculateDuration(
+                                                session.check_in,
+                                                session.check_out
+                                              )}
+                                            </Typography>
+                                          </Box>
+                                        </Box>
+                                      </Paper>
+
+                                      <Paper
+                                        elevation={0}
+                                        sx={{
+                                          p: { xs: 2, sm: 2.5 },
+                                          borderRadius: "12px",
+                                          bgcolor: "#f8fafc",
+                                          border: "1.5px solid #e2e8f0",
+                                          transition: "all 0.3s",
+                                          flex: 1,
+                                          display: "flex",
+                                          flexDirection: "column",
+                                          "&:hover": {
+                                            borderColor: "#2563eb",
+                                            boxShadow:
+                                              "0 2px 8px rgba(37, 99, 235, 0.1)",
+                                          },
+                                        }}
+                                      >
+                                        <Box
+                                          sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: 1.5,
+                                            height: "100%",
+                                          }}
+                                        >
+                                          <ReceiptIcon
+                                            sx={{
+                                              fontSize: { xs: 24, sm: 28 },
+                                              color: "#2563eb",
+                                              flexShrink: 0,
+                                            }}
+                                          />
+                                          <Box sx={{ flex: 1 }}>
+                                            <Typography
+                                              variant="caption"
+                                              color="text.secondary"
+                                              sx={{
+                                                display: "block",
+                                                mb: 1,
+                                                fontWeight: 600,
+                                                textTransform: "uppercase",
+                                                letterSpacing: "0.5px",
+                                                fontSize: {
+                                                  xs: "0.75rem",
+                                                  sm: "0.8rem",
+                                                },
+                                              }}
+                                            >
+                                              Số tiền đã thanh toán
+                                            </Typography>
+                                            {isLoadingInvoice ? (
+                                              <Box
+                                                sx={{
+                                                  display: "flex",
+                                                  alignItems: "center",
+                                                  gap: 1,
+                                                }}
+                                              >
+                                                <CircularProgress
+                                                  size={20}
+                                                  sx={{ color: "#2563eb" }}
+                                                />
+                                                <Typography
+                                                  variant="body2"
+                                                  color="text.secondary"
+                                                  sx={{
+                                                    fontSize: {
+                                                      xs: "0.85rem",
+                                                      sm: "0.9rem",
+                                                    },
+                                                  }}
+                                                >
+                                                  Đang tải...
+                                                </Typography>
+                                              </Box>
                                             ) : (
                                               <Typography
                                                 variant="body1"
@@ -1259,201 +1678,24 @@ export default function UserSessionLookup() {
                                                     sm: "1.05rem",
                                                   },
                                                   lineHeight: 1.4,
-                                                  color:
-                                                    daysRemaining !== null &&
-                                                    daysRemaining <= 7
-                                                      ? "#DC2626"
-                                                      : "inherit",
                                                 }}
                                               >
-                                                {formatDaysRemaining(
-                                                  daysRemaining
-                                                )}
+                                                {isMonthlyCard
+                                                  ? formatCurrency(0)
+                                                  : invoiceAmount
+                                                  ? formatCurrency(
+                                                      invoiceAmount
+                                                    )
+                                                  : "-"}
                                               </Typography>
                                             )}
                                           </Box>
                                         </Box>
                                       </Paper>
-                                    )}
-
-                                    {hasCheckout && (
-                                      <>
-                                        <Paper
-                                          elevation={0}
-                                          sx={{
-                                            p: { xs: 2, sm: 2.5 },
-                                            borderRadius: "12px",
-                                            bgcolor: "#f8fafc",
-                                            border: "1.5px solid #e2e8f0",
-                                            transition: "all 0.3s",
-                                            flex: 1,
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            "&:hover": {
-                                              borderColor: "#2563eb",
-                                              boxShadow:
-                                                "0 2px 8px rgba(37, 99, 235, 0.1)",
-                                            },
-                                          }}
-                                        >
-                                          <Box
-                                            sx={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                              justifyContent: "center",
-                                              gap: 1.5,
-                                              height: "100%",
-                                            }}
-                                          >
-                                            <AccessTimeIcon
-                                              sx={{
-                                                fontSize: { xs: 24, sm: 28 },
-                                                color: "#2563eb",
-                                                flexShrink: 0,
-                                              }}
-                                            />
-                                            <Box sx={{ flex: 1 }}>
-                                              <Typography
-                                                variant="caption"
-                                                color="text.secondary"
-                                                sx={{
-                                                  display: "block",
-                                                  mb: 1,
-                                                  fontWeight: 600,
-                                                  textTransform: "uppercase",
-                                                  letterSpacing: "0.5px",
-                                                  fontSize: {
-                                                    xs: "0.75rem",
-                                                    sm: "0.8rem",
-                                                  },
-                                                }}
-                                              >
-                                                Thời gian gửi
-                                              </Typography>
-                                              <Typography
-                                                variant="body1"
-                                                fontWeight={600}
-                                                sx={{
-                                                  fontSize: {
-                                                    xs: "0.95rem",
-                                                    sm: "1.05rem",
-                                                  },
-                                                  lineHeight: 1.4,
-                                                }}
-                                              >
-                                                {calculateDuration(
-                                                  session.check_in,
-                                                  session.check_out
-                                                )}
-                                              </Typography>
-                                            </Box>
-                                          </Box>
-                                        </Paper>
-
-                                        <Paper
-                                          elevation={0}
-                                          sx={{
-                                            p: { xs: 2, sm: 2.5 },
-                                            borderRadius: "12px",
-                                            bgcolor: "#f8fafc",
-                                            border: "1.5px solid #e2e8f0",
-                                            transition: "all 0.3s",
-                                            flex: 1,
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            "&:hover": {
-                                              borderColor: "#2563eb",
-                                              boxShadow:
-                                                "0 2px 8px rgba(37, 99, 235, 0.1)",
-                                            },
-                                          }}
-                                        >
-                                          <Box
-                                            sx={{
-                                              display: "flex",
-                                              alignItems: "center",
-                                              justifyContent: "center",
-                                              gap: 1.5,
-                                              height: "100%",
-                                            }}
-                                          >
-                                            <ReceiptIcon
-                                              sx={{
-                                                fontSize: { xs: 24, sm: 28 },
-                                                color: "#2563eb",
-                                                flexShrink: 0,
-                                              }}
-                                            />
-                                            <Box sx={{ flex: 1 }}>
-                                              <Typography
-                                                variant="caption"
-                                                color="text.secondary"
-                                                sx={{
-                                                  display: "block",
-                                                  mb: 1,
-                                                  fontWeight: 600,
-                                                  textTransform: "uppercase",
-                                                  letterSpacing: "0.5px",
-                                                  fontSize: {
-                                                    xs: "0.75rem",
-                                                    sm: "0.8rem",
-                                                  },
-                                                }}
-                                              >
-                                                Số tiền đã thanh toán
-                                              </Typography>
-                                              {isLoadingInvoice ? (
-                                                <Box
-                                                  sx={{
-                                                    display: "flex",
-                                                    alignItems: "center",
-                                                    gap: 1,
-                                                  }}
-                                                >
-                                                  <CircularProgress
-                                                    size={20}
-                                                    sx={{ color: "#2563eb" }}
-                                                  />
-                                                  <Typography
-                                                    variant="body2"
-                                                    color="text.secondary"
-                                                    sx={{
-                                                      fontSize: {
-                                                        xs: "0.85rem",
-                                                        sm: "0.9rem",
-                                                      },
-                                                    }}
-                                                  >
-                                                    Đang tải...
-                                                  </Typography>
-                                                </Box>
-                                              ) : (
-                                                <Typography
-                                                  variant="body1"
-                                                  fontWeight={600}
-                                                  sx={{
-                                                    fontSize: {
-                                                      xs: "0.95rem",
-                                                      sm: "1.05rem",
-                                                    },
-                                                    lineHeight: 1.4,
-                                                  }}
-                                                >
-                                                  {invoiceAmount
-                                                    ? formatCurrency(
-                                                        invoiceAmount
-                                                      )
-                                                    : "-"}
-                                                </Typography>
-                                              )}
-                                            </Box>
-                                          </Box>
-                                        </Paper>
-                                      </>
-                                    )}
-                                  </Box>
+                                    </Box>
+                                  </Grid>
                                 </Grid>
-                              </Grid>
+                              )}
                             </Box>
                           </Box>
                         </CardContent>
