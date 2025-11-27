@@ -11,17 +11,17 @@
 #define RFID_RST_PIN 3
 #define RFID_SDA_PIN 10
 
-// WiFi credentials
-const char* ssid = "ZG04";
-const char* pass = "zg04ckpt";
+// ===== CẤU HÌNH WIFI =====
+const char* ssid = "[WifiName]";
+const char* password = "[WifiPass]";
 
-// MQTT Broker
-const char* mqttServer = "10.215.192.99";
+// ===== CẤU HÌNH MQTT =====
+const char* mqttServer = "[Broker LAN IP]";
 const int mqttPort = 1883;
 const char* mqttTopic = "esp32c3";
 const char* clientId = "esp32c3";
 
-// Version checking
+// Version checking example
 const char* versionCheckUrl = "https://iot.hoangcn.com/api/devices/check-version?key=804e8ee5eba8c5c3d17cd17077677b07adbcd134aab3f3289d4d47b001779b9e&device_id=1";
 const char* firmwareBaseUrl = "https://iot.hoangcn.com";
 String currentVersion = "1"; // Version hiện tại của thiết bị

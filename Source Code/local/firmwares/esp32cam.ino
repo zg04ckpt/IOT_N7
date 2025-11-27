@@ -7,16 +7,17 @@
 #include <ArduinoJson.h>
 
 // ===== CẤU HÌNH WIFI =====
-const char* ssid = "ZG04";
-const char* password = "zg04ckpt";
+const char* ssid = "[WifiName]";
+const char* password = "[WifiPass]";
 
 // ===== CẤU HÌNH MQTT =====
-const char* mqttServer = "10.215.192.99";
+const char* mqttServer = "[Broker LAN IP]";
 const int mqttPort = 1883;
 const char* mqttTopic = "esp32cam";
 const char* clientId = "esp32cam";
 
 // ===== CẤU HÌNH VERSION & OTA =====
+// Version checking example
 const char* versionCheckUrl = "https://iot.hoangcn.com/api/devices/check-version?key=804e8ee5eba8c5c3d17cd17077677b07adbcd134aab3f3289d4d47b001779b9e&device_id=1";
 const char* firmwareBaseUrl = "https://iot.hoangcn.com";
 String currentVersion = "1"; // Version hiện tại của thiết bị

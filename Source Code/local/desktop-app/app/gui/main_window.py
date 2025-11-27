@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from functools import partial
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSizePolicy,
-                               QHBoxLayout, QLabel, QTabWidget, QFrame, QGridLayout,
+                               QHBoxLayout, QLabel, QTabWidget, QFrame, QGridLayout, QMessageBox,
                                QLineEdit, QPushButton, QSpinBox, QProgressBar, QStatusBar)
 from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtGui import QFont
@@ -10,7 +11,6 @@ from app.controllers.main_controller import MainController
 from app.models.background_worker import InitMainControllerWorkers, run_in_bg_async
 from app.models.enums import EventType
 from app.utils.convert_util import bytes_to_ndarray
-from app.utils.window_util import show_error, show_info
 
 class MainWindow(QMainWindow):
     ui_event_signal = Signal(EventType, object)
@@ -33,9 +33,10 @@ class MainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         self.tab_widget.addTab(self.create_status_tab(), "Trạng thái")
         self.tab_widget.addTab(self.create_register_tab(), "Đăng kí vé tháng")
-        self.tab_widget.addTab(self.create_cancel_tab(), "Hủy đăng kí vé tháng")
+        self.tab_widget.addTab(self.create_unregister_tab(), "Hủy đăng kí vé tháng")
+        self.tab_widget.addTab(self.create_new_ticket_tab(), "Tạo vé xe mới")
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
-        
+
         # Left panel
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
@@ -64,12 +65,44 @@ class MainWindow(QMainWindow):
 
         self.showMaximized()
         
+    def create_new_ticket_tab(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+        layout.setAlignment(Qt.AlignTop)
+        layout.setSpacing(20)
+        
+        title = QLabel("TẠO VÉ XE MỚI")
+        title.setFont(QFont("Arial", 16, QFont.Bold))
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("padding: 20px;")
+        layout.addWidget(title)
+
+        warning = QLabel("Vui lòng đặt thẻ trống vào đầu đọc để tạo vé mới!")
+        warning.setFont(QFont("Arial", 11, QFont.Bold))
+        warning.setAlignment(Qt.AlignCenter)
+        warning.setStyleSheet("color: #333; padding: 20px;")
+        layout.addWidget(warning)
+
+        return tab
+
+
     def _on_controller_ready(self, controller):
         self.controller = controller
         self.hide_loading_overlay()
 
+    def show_info(self, message, title="Thông báo"):
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.setWindowTitle(title)
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
+
     def _on_ui_event(self, etype: EventType, data):
         match etype:
+            case EventType.SHOW_MESS:
+                self.show_info(data)
+
             case EventType.STATUS_CHANGED:
                 self.system_status.setText(data)
                 self.hide_loading_overlay()
@@ -119,8 +152,6 @@ class MainWindow(QMainWindow):
                 else:
                     self.fee_label.setText(f"THU TIỀN: -- VNĐ")
 
-
-
             case EventType.ESP32C3_CONNECTED:
                 self.esp32c3_status_label.setStyleSheet("color: green;")
                 self.esp32c3_status_label.setText("ESP32C3: Đã kết nối")
@@ -140,12 +171,30 @@ class MainWindow(QMainWindow):
                 self.live_camera.setPixmap(data)
             case EventType.ESP32CAM_RECEIVED_CAPTURE:
                 self.capture_image.setPixmap(data)
+
+            case EventType.RECEIVED_MONTHLY_INFO:
+                self.name_value.setText(data["monthly_user_name"])
+                self.phone_value.setText(data["monthly_user_phone"])
+                self.address_value.setText(data["monthly_user_address"])
+                self.expiry_value.setText(data["monthly_user_expiry"])
+                self.cancel_button.clicked.connect(
+                    lambda: self.controller.handle_unregister_monthly(data["id"])
+                )
+
         
     def on_tab_changed(self, index):
         if index == 0:
             self.right_panel.show()
         else:
             self.right_panel.hide()
+        if index == 0:
+            self.controller.tab = 'status'
+        if index == 1:
+            self.controller.tab = 'register'
+        if index == 2:
+            self.controller.tab = 'unregister'
+        if index == 3:
+            self.controller.tab = 'create'
     
     def create_left_panel(self):
         panel = QWidget()
@@ -156,7 +205,7 @@ class MainWindow(QMainWindow):
         tab_widget = QTabWidget()
         tab_widget.addTab(self.create_status_tab(), "Trạng thái")
         tab_widget.addTab(self.create_register_tab(), "Đăng kí vé tháng")
-        tab_widget.addTab(self.create_cancel_tab(), "Hủy đăng kí vé tháng")
+        tab_widget.addTab(self.create_unregister_tab(), "Hủy đăng kí vé tháng")
         
         layout.addWidget(tab_widget)
         
@@ -315,9 +364,10 @@ class MainWindow(QMainWindow):
         name_label.setFont(QFont("Arial", 11, QFont.Bold))
         form_layout.addWidget(name_label, 0, 0, Qt.AlignRight)
         
-        self.register_name = QLineEdit()
+        self.register_name = QLineEdit(text="")
         self.register_name.setFixedHeight(35)
         self.register_name.setStyleSheet("border: 1px solid black; padding: 5px;")
+        self.register_name.textChanged.connect(self._update_register_processing_data)
         form_layout.addWidget(self.register_name, 0, 1)
         
         # Phone number
@@ -325,9 +375,10 @@ class MainWindow(QMainWindow):
         phone_label.setFont(QFont("Arial", 11, QFont.Bold))
         form_layout.addWidget(phone_label, 1, 0, Qt.AlignRight)
         
-        self.register_phone = QLineEdit()
+        self.register_phone = QLineEdit(text="")
         self.register_phone.setFixedHeight(35)
         self.register_phone.setStyleSheet("border: 1px solid black; padding: 5px;")
+        self.register_phone.textChanged.connect(self._update_register_processing_data)
         form_layout.addWidget(self.register_phone, 1, 1)
         
         # Address
@@ -335,9 +386,10 @@ class MainWindow(QMainWindow):
         address_label.setFont(QFont("Arial", 11, QFont.Bold))
         form_layout.addWidget(address_label, 2, 0, Qt.AlignRight)
         
-        self.register_address = QLineEdit()
+        self.register_address = QLineEdit(text="")
         self.register_address.setFixedHeight(35)
         self.register_address.setStyleSheet("border: 1px solid black; padding: 5px;")
+        self.register_address.textChanged.connect(self._update_register_processing_data)
         form_layout.addWidget(self.register_address, 2, 1)
         
         # Number of months
@@ -351,16 +403,20 @@ class MainWindow(QMainWindow):
         self.register_months.setFixedHeight(35)
         self.register_months.setStyleSheet("border: 1px solid black; padding: 5px; font-size: 12pt;")
         self.register_months.valueChanged.connect(self.update_register_total)
+        self.register_months.valueChanged.connect(self.update_register_expiry)
+        self.register_months.valueChanged.connect(self._update_register_processing_data)
         form_layout.addWidget(self.register_months, 3, 1)
+        
         
         # Expiry date
         expiry_label = QLabel("Hết hạn:")
         expiry_label.setFont(QFont("Arial", 11, QFont.Bold))
         form_layout.addWidget(expiry_label, 4, 0, Qt.AlignRight)
         
-        self.register_expiry = QLabel("29/12/2025")
+        self.register_expiry = QLabel("")
         self.register_expiry.setFont(QFont("Arial", 11))
         form_layout.addWidget(self.register_expiry, 4, 1)
+        self.update_register_expiry()
         
         # Total amount
         total_label = QLabel("Tổng tiền:")
@@ -385,7 +441,18 @@ class MainWindow(QMainWindow):
         
         return tab
     
-    def create_cancel_tab(self):
+    def _update_register_processing_data(self):
+        if self.tab_widget.currentIndex() != 1 or not self.controller:
+            return
+        register_data = {
+            "name": self.register_name.text(),
+            "phone": self.register_phone.text(),
+            "address": self.register_address.text(),
+            "months": self.register_months.value(),
+        }
+        self.controller.register_data = register_data
+
+    def create_unregister_tab(self):
         tab = QWidget()
         layout = QVBoxLayout(tab)
         layout.setAlignment(Qt.AlignTop)
@@ -416,45 +483,40 @@ class MainWindow(QMainWindow):
         name_label.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(name_label, 0, 0, Qt.AlignRight)
         
-        name_value = QLabel("Hoàng Cao Nguyên")
+        name_value = QLabel("")
         name_value.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(name_value, 0, 1, Qt.AlignLeft)
+        self.name_value = name_value
         
         # Phone number
         phone_label = QLabel("Số điện thoại:")
         phone_label.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(phone_label, 1, 0, Qt.AlignRight)
         
-        phone_value = QLabel("0375985851")
+        phone_value = QLabel("")
         phone_value.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(phone_value, 1, 1, Qt.AlignLeft)
+        self.phone_value = phone_value
         
         # Address
         address_label = QLabel("Địa chỉ:")
         address_label.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(address_label, 2, 0, Qt.AlignRight)
         
-        address_value = QLabel("Phú THọ")
+        address_value = QLabel("")
         address_value.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(address_value, 2, 1, Qt.AlignLeft)
-        
-        # Number of months
-        months_label = QLabel("Số tháng:")
-        months_label.setFont(QFont("Arial", 11, QFont.Bold))
-        info_layout.addWidget(months_label, 3, 0, Qt.AlignRight)
-        
-        months_value = QLabel("2")
-        months_value.setFont(QFont("Arial", 11, QFont.Bold))
-        info_layout.addWidget(months_value, 3, 1, Qt.AlignLeft)
+        self.address_value = address_value
         
         # Expiry date
         expiry_label = QLabel("Hết hạn:")
         expiry_label.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(expiry_label, 4, 0, Qt.AlignRight)
         
-        expiry_value = QLabel("29/12/2025")
+        expiry_value = QLabel("")
         expiry_value.setFont(QFont("Arial", 11, QFont.Bold))
         info_layout.addWidget(expiry_value, 4, 1, Qt.AlignLeft)
+        self.expiry_value = expiry_value
         
         layout.addLayout(info_layout)
         layout.addSpacing(30)
@@ -473,12 +535,11 @@ class MainWindow(QMainWindow):
                 background-color: #f0f0f0;
             }
         """)
-        
         button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        button_layout.addWidget(cancel_button)
-        button_layout.addStretch()
+        button_layout.addWidget(cancel_button, alignment=Qt.AlignCenter)
         layout.addLayout(button_layout)
+        self.cancel_button = cancel_button
+
         
         layout.addStretch()
         
@@ -488,6 +549,13 @@ class MainWindow(QMainWindow):
         months = self.register_months.value()
         total = months * 100000
         self.register_total.setText(f"{months} tháng x 100.000 = {total:,} VNĐ".replace(",", "."))
+
+    def update_register_expiry(self):
+        months = self.register_months.value()
+        now = datetime.now()
+        # Cộng số tháng vào ngày hiện tại
+        expiry = now + timedelta(days=months*30)
+        self.register_expiry.setText(expiry.strftime("%d/%m/%Y"))
     
     def create_divider(self):
         line = QFrame()
