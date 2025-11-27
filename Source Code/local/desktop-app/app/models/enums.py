@@ -2,6 +2,10 @@ from enum import Enum
 
 
 class EventType(Enum):
+    CHECKED_STATUS = 0,
+    STATUS_CHANGED = 1,
+    LOADING = 2,
+
     ESP32C3_CONNECTED = 100,
     ESP32C3_UID = 101,
     ESP32C3_DISCONNECTED = 102,

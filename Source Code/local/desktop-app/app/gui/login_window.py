@@ -137,8 +137,7 @@ class LoginWindow(QMainWindow):
         self.show_error(message)
         self.login_button.setText("Đăng nhập")
     
-    @asyncSlot()
-    async def login(self):
+    def login(self):
         self.login_button.setText("Đang đăng nhập ...")
 
         email = self.email_input.text().strip()
@@ -153,4 +152,6 @@ class LoginWindow(QMainWindow):
             self.show_error("Vui lòng điền mật khẩu")
             return
         
-        await self.controller.login(email, password)
+        email = "guard@gmail.com"
+        password = "guard"
+        self.controller.login(email, password)

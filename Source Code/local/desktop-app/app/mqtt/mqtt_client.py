@@ -4,7 +4,7 @@ from app.models.enums import EventType
 
 CLIENT_ID = "desktop-app"
 
-BROKER_HOST = "10.215.192.99"
+BROKER_HOST = "10.228.235.99"
 BROKER_PORT = 1883
 
 ESP32C3_CHANNEL = "esp32c3"
@@ -12,7 +12,9 @@ ESP32CAM_CHANNEL = "esp32cam"
 
 class MQTTClient:
     def __init__(self, on_received_message):
-        self.client: mqtt.Client = mqtt.Client(client_id=CLIENT_ID, protocol=mqtt.MQTTv311)
+        self.client: mqtt.Client = mqtt.Client(
+            client_id=CLIENT_ID, protocol=mqtt.MQTTv311,
+            reconnect_on_failure=True)
         
         self.client.on_connect = self._on_connect
         self.client.on_message = self._on_message

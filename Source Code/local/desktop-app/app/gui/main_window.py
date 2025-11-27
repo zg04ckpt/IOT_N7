@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QSizePolicy,
                                QHBoxLayout, QLabel, QTabWidget, QFrame, QGridLayout,
                                QLineEdit, QPushButton, QSpinBox, QProgressBar, QStatusBar)
@@ -8,6 +9,7 @@ from PySide6.QtGui import QImage, QPixmap
 from app.controllers.main_controller import MainController
 from app.models.background_worker import InitMainControllerWorkers, run_in_bg_async
 from app.models.enums import EventType
+from app.utils.convert_util import bytes_to_ndarray
 from app.utils.window_util import show_error, show_info
 
 class MainWindow(QMainWindow):
@@ -66,14 +68,64 @@ class MainWindow(QMainWindow):
         self.controller = controller
         self.hide_loading_overlay()
 
-    def _on_ui_event(self, type: EventType, data):
-        match type:
+    def _on_ui_event(self, etype: EventType, data):
+        match etype:
+            case EventType.STATUS_CHANGED:
+                self.system_status.setText(data)
+                self.hide_loading_overlay()
+
+            case EventType.CHECKED_STATUS:
+                self.hide_loading_overlay()
+                info, plate_pixmap  = data
+                scaled_pixmap = plate_pixmap.scaled(
+                    300, 150,
+                    Qt.AspectRatioMode.KeepAspectRatio,           
+                    Qt.TransformationMode.SmoothTransformation  
+                )
+                self.plate_image.setPixmap(scaled_pixmap)
+
+                self.plate_number.setText(info['plate'])
+                self.card_id.setText(str(info['card_id']))
+                self.card_type.setText("Vé tháng" if info['info'] else "Vé lượt")
+
+                check_in = datetime.strptime(info['check_in'], "%Y-%m-%d %H:%M:%S")
+                check_in_plus7 = check_in + timedelta(hours=7)
+                self.entry_time.setText(str(check_in_plus7))
+
+                if info['check_out']:
+                    print('Checkout:::' + info['check_out'])
+                    check_out = datetime.strptime(info['check_out'], "%Y-%m-%d %H:%M:%S")
+                    check_out_plus7 = check_out + timedelta(hours=7)
+                    self.exit_time.setText(str(check_out_plus7))
+                    duration_minutes = (check_out_plus7 - check_in_plus7).total_seconds() / 60
+                    self.duration.setText(duration_minutes)
+                else:
+                    self.exit_time.setText("--")
+                    self.duration.setText("--")
+
+
+                if info['info']:
+                    self.owner_name.setText(info["info"]["monthly_user_name"])
+                    self.phone.setText(info["info"]["monthly_user_phone"])
+                    self.location.setText(info["info"]["monthly_user_address"])
+                else:
+                    self.owner_name.setText("--")
+                    self.phone.setText("--")
+                    self.location.setText("--")
+
+
+                if info['amount']:
+                    self.fee_label.setText(f"THU TIỀN: {str(info['amount'])} VNĐ")
+                else:
+                    self.fee_label.setText(f"THU TIỀN: -- VNĐ")
+
+
+
             case EventType.ESP32C3_CONNECTED:
                 self.esp32c3_status_label.setStyleSheet("color: green;")
                 self.esp32c3_status_label.setText("ESP32C3: Đã kết nối")
             case EventType.ESP32C3_UID:
-                # show_info(self, "Thẻ mới: " + data)
-                pass
+                self.show_loading_overlay()
             case EventType.ESP32C3_DISCONNECTED:
                 self.esp32c3_status_label.setStyleSheet("color: red;")
                 self.esp32c3_status_label.setText("ESP32C3: Mất kết nối")
@@ -120,12 +172,14 @@ class MainWindow(QMainWindow):
         status_label.setFont(QFont("Arial", 10, QFont.Bold))
         layout.addWidget(status_label)
         
+        
         # Vehicle type
-        vehicle_type = QLabel("XE RA")
-        vehicle_type.setFont(QFont("Arial", 16, QFont.Bold))
-        vehicle_type.setAlignment(Qt.AlignCenter)
-        vehicle_type.setStyleSheet("background-color: #e8e8e8; padding: 10px; margin: 10px 0;")
-        layout.addWidget(vehicle_type)
+        system_status = QLabel("XE RA")
+        system_status.setFont(QFont("Arial", 16, QFont.Bold))
+        system_status.setAlignment(Qt.AlignCenter)
+        system_status.setStyleSheet("background-color: #e8e8e8; padding: 10px; margin: 10px 0;")
+        layout.addWidget(system_status)
+        self.system_status = system_status
         
         # License plate image placeholder
         image_label = QLabel("Ảnh biển số:")
@@ -137,13 +191,7 @@ class MainWindow(QMainWindow):
         plate_image.setStyleSheet("border: 1px solid black; background-color: white;")
         plate_image.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        pixmap = QPixmap("image.png")
-        scaled_pixmap = pixmap.scaled(
-            300, 150,
-            Qt.AspectRatioMode.KeepAspectRatio,           
-            Qt.TransformationMode.SmoothTransformation  
-        )
-        plate_image.setPixmap(scaled_pixmap)
+        self.plate_image = plate_image
         layout.addWidget(plate_image, alignment=Qt.AlignmentFlag.AlignHCenter)
         
         # Information grid
@@ -153,9 +201,10 @@ class MainWindow(QMainWindow):
         
         # License plate number
         info_layout.addWidget(QLabel("Số biển:"), 0, 0)
-        plate_number = QLabel("19AF-10350")
+        plate_number = QLabel("--")
         plate_number.setFont(QFont("Arial", 12, QFont.Bold))
         info_layout.addWidget(plate_number, 0, 1)
+        self.plate_number = plate_number
         
         # Divider
         info_layout.addWidget(self.create_divider(), 1, 0, 1, 2)
@@ -167,33 +216,39 @@ class MainWindow(QMainWindow):
         
         # Entry time
         info_layout.addWidget(QLabel("Giờ vào:"), 3, 0)
-        entry_time = QLabel("19:23 24/12/2025")
+        # entry_time = QLabel("19:23 24/12/2025")
+        entry_time = QLabel("--")
         entry_time.setFont(QFont("Arial", 10))
         info_layout.addWidget(entry_time, 3, 1)
+        self.entry_time = entry_time
         
         # Exit time
         info_layout.addWidget(QLabel("Giờ ra:"), 4, 0)
-        exit_time = QLabel("19:29 24/12/2025")
+        exit_time = QLabel("--")
         exit_time.setFont(QFont("Arial", 10))
         info_layout.addWidget(exit_time, 4, 1)
+        self.exit_time = exit_time
         
         # Card ID
         info_layout.addWidget(QLabel("ID Thẻ:"), 5, 0)
-        card_id = QLabel("78C4526H")
+        card_id = QLabel("--")
         card_id.setFont(QFont("Arial", 10))
         info_layout.addWidget(card_id, 5, 1)
+        self.card_id = card_id
         
         # Card type
         info_layout.addWidget(QLabel("Loại thẻ:"), 6, 0)
-        card_type = QLabel("Vé tháng")
+        card_type = QLabel("Vé lượt")
         card_type.setFont(QFont("Arial", 10, QFont.Bold))
         info_layout.addWidget(card_type, 6, 1)
+        self.card_type = card_type
         
         # Duration
         info_layout.addWidget(QLabel("Tổng thời gian đỗ:"), 7, 0)
         duration = QLabel("5 phút")
         duration.setFont(QFont("Arial", 10))
         info_layout.addWidget(duration, 7, 1)
+        self.duration = duration
         
         # Divider
         info_layout.addWidget(self.create_divider(), 8, 0, 1, 2)
@@ -205,30 +260,34 @@ class MainWindow(QMainWindow):
         
         # Owner name
         info_layout.addWidget(QLabel("Tên:"), 10, 0)
-        owner_name = QLabel("Hoàng Cao Nguyên")
+        owner_name = QLabel("--")
         owner_name.setFont(QFont("Arial", 10))
         info_layout.addWidget(owner_name, 10, 1)
+        self.owner_name = owner_name
         
         # Phone number
         info_layout.addWidget(QLabel("SĐT:"), 11, 0)
-        phone = QLabel("0375985850")
+        phone = QLabel("--")
         phone.setFont(QFont("Arial", 10))
         info_layout.addWidget(phone, 11, 1)
+        self.phone = phone
         
         # Location
         info_layout.addWidget(QLabel("Địa chỉ:"), 12, 0)
-        location = QLabel("Hà Nội")
+        location = QLabel("--")
         location.setFont(QFont("Arial", 10))
         info_layout.addWidget(location, 12, 1)
+        self.location = location
         
         layout.addLayout(info_layout)
         layout.addStretch()
         
         # Fee section
-        fee_label = QLabel("THU TIỀN: 12.000 VNĐ")
+        fee_label = QLabel("THU TIỀN: -- VNĐ")
         fee_label.setFont(QFont("Arial", 14, QFont.Bold))
         fee_label.setStyleSheet("color: green; padding: 15px; background-color: #f0f0f0;")
         layout.addWidget(fee_label)
+        self.fee_label = fee_label
         
         return tab
     
