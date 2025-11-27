@@ -152,6 +152,4 @@ class LoginWindow(QMainWindow):
             self.show_error("Vui lòng điền mật khẩu")
             return
         
-        email = "guard@gmail.com"
-        password = "guard"
         self.controller.login(email, password)
