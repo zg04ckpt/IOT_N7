@@ -36,7 +36,8 @@ class DeviceController {
         try {
             const { id } = req.params;
             const { source_code } = req.body;
-            const userId = req.user.id;
+            // const userId = req.user.id;
+            const userId = null;
 
             const result = await deviceService.updateVersion(id, source_code, userId);
             return successResponse(res, 'Cập nhật firmware thành công', result);

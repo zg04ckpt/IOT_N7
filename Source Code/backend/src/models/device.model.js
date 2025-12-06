@@ -1,14 +1,12 @@
 export const BoardType = Object.freeze({
-    ESP32: 'esp32:esp32:esp32',
-    ESP32_C3: 'esp32:esp32:esp32c3',
-    ESP32_S2: 'esp32:esp32:esp32s2',
-    ESP32_S3: 'esp32:esp32:esp32s3',
-    ESP8266: 'esp8266:esp8266:generic'
+    ESP32C3: 'esp32:esp32:esp32c3',
+    ESP32CAM: 'esp32:esp32:esp32cam'
 });
 
 export const DeviceStatus = Object.freeze({
     RUNNING: 'running',
     UPDATING: 'updating',
+    UPDATED: 'updated',
     OFFLINE: 'offline'
 });
 

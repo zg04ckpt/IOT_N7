@@ -18,32 +18,16 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-echo 2. Prepare images to export
-echo Pulling MySQL image (mysql:8.0) to ensure it's available locally...
-docker pull mysql:8.0
-if %ERRORLEVEL% neq 0 (
-    echo Warning: failed to pull mysql:8.0; continuing but save may fail.
-)
-
+echo 2. Prepare backend image to export
 set "BACKEND_IMAGE=iot-backend:latest"
-set "MYSQL_IMAGE=mysql:8.0"
 set "BACKEND_TAR=iot-backend.tar"
-set "MYSQL_TAR=iot-mysql.tar"
 
 echo Saving %BACKEND_IMAGE% to %BACKEND_TAR%...
 docker save -o "%BACKEND_TAR%" "%BACKEND_IMAGE%"
 if %ERRORLEVEL% neq 0 (
-    echo ERROR: failed to save %BACKEND_IMAGE% -- make sure the image name matches what was built.
+    echo ERROR: failed to save %BACKEND_IMAGE%
     echo Listing recent images for debugging:
     docker images --format "table {{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}"
-    pause
-    exit /b 1
-)
-
-echo Saving %MYSQL_IMAGE% to %MYSQL_TAR%...
-docker save -o "%MYSQL_TAR%" "%MYSQL_IMAGE%"
-if %ERRORLEVEL% neq 0 (
-    echo ERROR: failed to save %MYSQL_IMAGE% -- make sure the image exists locally.
     pause
     exit /b 1
 )
@@ -55,9 +39,6 @@ scp "%COMPOSE_FILE%" %SERVER_USER%@%SERVER_HOST%:%SERVER_PATH%/ || (
 )
 scp "%BACKEND_TAR%" %SERVER_USER%@%SERVER_HOST%:%SERVER_PATH%/ || (
     echo SCP of backend tar failed & pause & exit /b 1
-)
-scp "%MYSQL_TAR%" %SERVER_USER%@%SERVER_HOST%:%SERVER_PATH%/ || (
-    echo SCP of mysql tar failed & pause & exit /b 1
 )
 scp "vps.sh" %SERVER_USER%@%SERVER_HOST%:%SERVER_PATH%/ || (
     echo Script for vps failed & pause & exit /b 1

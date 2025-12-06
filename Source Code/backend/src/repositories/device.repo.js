@@ -58,35 +58,56 @@ class DeviceRepo {
     }
 
     async update(id, deviceData) {
-        const {
-            name,
-            board,
-            latest_version,
-            curr_version,
-            total_versions,
-            status
-        } = deviceData;
+        // Lấy device hiện tại để merge data
+        const currentDevice = await this.findById(id);
+        if (!currentDevice) return null;
 
-        const [result] = await db.execute(
-            `UPDATE devices 
-            SET 
-                name = COALESCE(?, name),
-                board = COALESCE(?, board),
-                latest_version = COALESCE(?, latest_version),
-                curr_version = COALESCE(?, curr_version),
-                total_versions = COALESCE(?, total_versions),
-                status = COALESCE(?, status),
-                updated_at = NOW()
-            WHERE id = ?`,
-            [name, board, latest_version, curr_version, total_versions, status, id]
-        );
+        // Chỉ update các field được truyền vào (khác undefined)
+        const updates = [];
+        const values = [];
+
+        if (deviceData.name !== undefined) {
+            updates.push('name = ?');
+            values.push(deviceData.name);
+        }
+        if (deviceData.board !== undefined) {
+            updates.push('board = ?');
+            values.push(deviceData.board);
+        }
+        if (deviceData.latest_version !== undefined) {
+            updates.push('latest_version = ?');
+            values.push(deviceData.latest_version);
+        }
+        if (deviceData.curr_version !== undefined) {
+            updates.push('curr_version = ?');
+            values.push(deviceData.curr_version);
+        }
+        if (deviceData.total_versions !== undefined) {
+            updates.push('total_versions = ?');
+            values.push(deviceData.total_versions);
+        }
+        if (deviceData.status !== undefined) {
+            updates.push('status = ?');
+            values.push(deviceData.status);
+        }
+
+        if (updates.length === 0) {
+            return currentDevice; // Không có gì để update
+        }
+
+        updates.push('updated_at = NOW()');
+        values.push(id);
+
+        const sql = `UPDATE devices SET ${updates.join(', ')} WHERE id = ?`;
+        await db.execute(sql, values);
+        
         return await this.findById(id);
     }
 
-    async updateStatus(id, status) {
+    async updateStatus(id, status, curr_version) {
         const [result] = await db.execute(
-            'UPDATE devices SET status = ?, updated_at = NOW() WHERE id = ?',
-            [status, id]
+            'UPDATE devices SET status = ?, curr_version = ?, updated_at = NOW() WHERE id = ?',
+            [status, curr_version, id]
         );
         return result.affectedRows > 0;
     }
