@@ -53,22 +53,33 @@ import {
   deleteDevice,
   updateVersion,
 } from "../api/device";
+import { getAllEnums } from "../api/enum";
 import { useSnackbar } from "../contexts/SnackbarContext";
 import Editor from "@monaco-editor/react";
+
+// Helper to extract readable API error message
+const getApiErrorMessage = (error, fallback = "Không thể lưu thiết bị. Vui lòng thử lại.") => {
+  const msg = error?.response?.data?.message || error?.message || fallback;
+  return msg;
+};
 
 const MotionCard = motion(Card);
 const MotionBox = motion(Box);
 
-// Helper function để format board name
-const formatBoardName = (board) => {
-  const boardMap = {
-    "esp32:esp32:esp32": "ESP32",
-    "esp32:esp32:esp32c3": "ESP32-C3",
-    "esp32:esp32:esp32s2": "ESP32-S2",
-    "esp32:esp32:esp32s3": "ESP32-S3",
-    "esp8266:esp8266:generic": "ESP8266",
-  };
-  return boardMap[board] || board;
+// Helper function để format board name (fallback nếu enums chưa tải kịp)
+const fallbackBoardMap = {
+  "esp32:esp32:esp32": "ESP32",
+  "esp32:esp32:esp32c3": "ESP32-C3",
+  "esp32:esp32:esp32s2": "ESP32-S2",
+  "esp32:esp32:esp32s3": "ESP32-S3",
+  "esp8266:esp8266:generic": "ESP8266",
+};
+
+const formatBoardName = (board, boardTypes) => {
+  const entries = Object.entries(boardTypes || {});
+  const found = entries.find(([, value]) => value === board);
+  if (found) return found[0];
+  return fallbackBoardMap[board] || board;
 };
 
 export default function DeviceManagement() {
@@ -92,10 +103,30 @@ export default function DeviceManagement() {
   const [searchName, setSearchName] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
 
+  const [boards, setBoards] = useState({});
+  const [createdSourceCode, setCreatedSourceCode] = useState(null);
+  const [showSourceCodeDialog, setShowSourceCodeDialog] = useState(false);
+
   // Fetch devices from API với pagination
   useEffect(() => {
     fetchDevices();
   }, [page, rowsPerPage]);
+
+  // Fetch enums to get board types
+  useEffect(() => {
+    const fetchBoards = async () => {
+      try {
+        const res = await getAllEnums();
+        const boardTypes = res?.data?.boardTypes || {};
+        setBoards(boardTypes);
+      } catch (err) {
+        console.error("Error fetching enums:", err);
+        // giữ fallback map nếu lỗi
+        setBoards(fallbackBoardMap);
+      }
+    };
+    fetchBoards();
+  }, []);
 
   const fetchDevices = async () => {
     try {
@@ -145,6 +176,8 @@ export default function DeviceManagement() {
     const normalized = normalizeStatus(status);
     if (normalized === "running") return "Hoạt động";
     if (normalized === "updating") return "Đang cập nhật";
+    if (normalized === "firmware building..." || normalized === "building")
+      return "Đang biên dịch";
     return "Offline";
   };
 
@@ -217,9 +250,10 @@ export default function DeviceManagement() {
         });
       }
     } else {
+      const defaultBoard = Object.values(boards)[0] || "esp32:esp32:esp32";
       reset({
         name: "",
-        board: "esp32:esp32:esp32",
+        board: defaultBoard,
         source_code: defaultArduinoCode,
       });
     }
@@ -230,6 +264,11 @@ export default function DeviceManagement() {
     setOpenDialog(false);
     setUploadedFileName(null);
     reset();
+  };
+
+  const handleCloseSourceCodeDialog = () => {
+    setShowSourceCodeDialog(false);
+    setCreatedSourceCode(null);
   };
 
   const handleSaveDevice = async (formData) => {
@@ -259,14 +298,8 @@ export default function DeviceManagement() {
         }
 
         // Validate board (giống backend Device.isValidBoard)
-        const validBoards = [
-          "esp32:esp32:esp32",
-          "esp32:esp32:esp32c3",
-          "esp32:esp32:esp32s2",
-          "esp32:esp32:esp32s3",
-          "esp8266:esp8266:generic",
-        ];
-        if (!formData.board || !validBoards.includes(formData.board)) {
+        const validBoards = Object.values(boards);
+        if (!formData.board || (validBoards.length > 0 && !validBoards.includes(formData.board))) {
           showError("Board không hợp lệ");
           return;
         }
@@ -277,6 +310,8 @@ export default function DeviceManagement() {
           return;
         }
 
+        setRefreshing(true);
+
         const response = await createDevice({
           name: trimmedName,
           board: formData.board,
@@ -285,13 +320,13 @@ export default function DeviceManagement() {
 
         if (response.data.success) {
           await fetchDevices();
-          handleCloseDialog();
-          const deviceKey = response.data.data?.key;
-          if (deviceKey) {
-            showSuccess(`Thêm thiết bị thành công!\nKey: ${deviceKey}`, 6000);
-          } else {
-            showSuccess("Thêm thiết bị thành công!");
+          const returnedSource = response.data.data?.sourceCode;
+          showSuccess("Thêm thiết bị thành công!");
+          if (returnedSource) {
+            setCreatedSourceCode(returnedSource);
+            setShowSourceCodeDialog(true);
           }
+          handleCloseDialog();
         }
       } else if (dialogType === "updateVersion") {
         // Cập nhật version firmware
@@ -307,6 +342,8 @@ export default function DeviceManagement() {
           showError("Không tìm thấy thông tin thiết bị");
           return;
         }
+
+        setRefreshing(true);
 
         const response = await updateVersion(selectedDevice.id, {
           source_code: trimmedSourceCode.replace(/\r\n|\r/g, "\n"), // Đảm bảo xuống dòng là \n
@@ -325,8 +362,7 @@ export default function DeviceManagement() {
       }
     } catch (error) {
       console.error("Error saving device:", error);
-      const errorMessage =
-        error.response?.message || "Không thể lưu thiết bị. Vui lòng thử lại.";
+      const errorMessage = getApiErrorMessage(error);
       showError(errorMessage);
     } finally {
       setRefreshing(false);
@@ -836,7 +872,7 @@ export default function DeviceManagement() {
                       }}
                     >
                       <Typography variant="body2" color="text.secondary">
-                        {formatBoardName(device.board)}
+                        {formatBoardName(device.board, boards)}
                       </Typography>
                     </TableCell>
                     <TableCell
@@ -1060,6 +1096,7 @@ export default function DeviceManagement() {
           sx={{
             pt: 2,
             overflow: "auto",
+            position: "relative",
             "&::-webkit-scrollbar": {
               width: "8px",
             },
@@ -1076,6 +1113,33 @@ export default function DeviceManagement() {
             },
           }}
         >
+          {refreshing && (
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(255, 255, 255, 0.9)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 5,
+                borderRadius: "inherit",
+              }}
+            >
+              <Box sx={{ textAlign: "center" }}>
+                <CircularProgress size={50} sx={{ color: "#1e88e5", mb: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  {dialogType === "add" ? "Đang biên dịch firmware..." : "Đang cập nhật firmware..."}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  Vui lòng đợi trong giây lát
+                </Typography>
+              </Box>
+            </Box>
+          )}
           <form onSubmit={handleSubmit(handleSaveDevice)}>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <Controller
@@ -1159,17 +1223,12 @@ export default function DeviceManagement() {
                 rules={{
                   required: "Vui lòng chọn loại board",
                   validate: (value) => {
-                    const validBoards = [
-                      "esp32:esp32:esp32",
-                      "esp32:esp32:esp32c3",
-                      "esp32:esp32:esp32s2",
-                      "esp32:esp32:esp32s3",
-                      "esp8266:esp8266:generic",
-                    ];
+                    const validBoards = Object.values(boards);
                     if (!value) {
                       return "Vui lòng chọn loại board";
                     }
-                    if (!validBoards.includes(value)) {
+                    // Nếu chưa tải được board từ API, cho phép giá trị hiện có (tránh chặn người dùng)
+                    if (validBoards.length > 0 && !validBoards.includes(value)) {
                       return "Board không hợp lệ";
                     }
                     return true;
@@ -1212,19 +1271,11 @@ export default function DeviceManagement() {
                           },
                         }}
                       >
-                        <MenuItem value="esp32:esp32:esp32">ESP32</MenuItem>
-                        <MenuItem value="esp32:esp32:esp32c3">
-                          ESP32-C3
-                        </MenuItem>
-                        <MenuItem value="esp32:esp32:esp32s2">
-                          ESP32-S2
-                        </MenuItem>
-                        <MenuItem value="esp32:esp32:esp32s3">
-                          ESP32-S3
-                        </MenuItem>
-                        <MenuItem value="esp8266:esp8266:generic">
-                          ESP8266
-                        </MenuItem>
+                        {Object.entries(boards).map(([label, value]) => (
+                          <MenuItem key={value} value={value}>
+                            {label}
+                          </MenuItem>
+                        ))}
                       </Select>
                       {error && (
                         <Typography
@@ -1679,6 +1730,109 @@ export default function DeviceManagement() {
             </motion.div>
           </DialogActions>
         </motion.div>
+      </Dialog>
+
+      {/* Dialog hiển thị source code sau khi tạo thành công */}
+      <Dialog
+        open={showSourceCodeDialog}
+        onClose={handleCloseSourceCodeDialog}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            maxHeight: "90vh",
+            borderRadius: "16px",
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, fontSize: "1.2rem", display: "flex", alignItems: "center", gap: 1 }}>
+          <CodeIcon sx={{ color: "#1e88e5" }} />
+          Source code mới nhất
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            pt: 2,
+            overflow: "auto",
+            "&::-webkit-scrollbar": {
+              width: "8px",
+            },
+            "&::-webkit-scrollbar-track": {
+              background: "#f1f1f1",
+              borderRadius: "4px",
+            },
+            "&::-webkit-scrollbar-thumb": {
+              background: "#888",
+              borderRadius: "4px",
+              "&:hover": {
+                background: "#555",
+              },
+            },
+          }}
+        >
+          <Box sx={{ mb: 2 }}>
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Thiết bị đã được tạo và biên dịch thành công. Đây là source code trả về từ server.
+            </Alert>
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: "10px",
+                overflow: "hidden",
+              }}
+            >
+              <Editor
+                height="450px"
+                language="cpp"
+                value={createdSourceCode || ""}
+                theme="vs-dark"
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  fontFamily: "'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace",
+                  lineNumbers: "on",
+                  scrollBeyondLastLine: false,
+                  readOnly: true,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  wordWrap: "on",
+                  padding: { top: 12, bottom: 12 },
+                }}
+                loading={
+                  <Box
+                    sx={{
+                      height: "450px",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "#1e1e1e",
+                      gap: 2,
+                    }}
+                  >
+                    <CircularProgress size={40} sx={{ color: "#1e88e5" }} />
+                    <Typography variant="body2" sx={{ color: "#888", fontFamily: "monospace" }}>
+                      Đang tải editor...
+                    </Typography>
+                  </Box>
+                }
+              />
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={handleCloseSourceCodeDialog}
+            variant="contained"
+            sx={{
+              background: "linear-gradient(135deg, #1e88e5 0%, #00bcd4 100%)",
+              textTransform: "none",
+              fontWeight: 600,
+            }}
+          >
+            Đóng
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );

@@ -11,30 +11,47 @@
 #define RFID_RST_PIN 3
 #define RFID_SDA_PIN 10
 
-// ===== CẤU HÌNH WIFI =====
-const char* ssid = "[WifiName]";
-const char* password = "[WifiPass]";
+// -------------------------
+// CONFIG TẬP TRUNG
+// -------------------------
+struct DeviceConfig {
+  const char* ssid = "ZG04";
+  const char* pass = "zg04ckpt";
 
-// ===== CẤU HÌNH MQTT =====
-const char* mqttServer = "[Broker LAN IP]";
-const int mqttPort = 1883;
-const char* mqttTopic = "esp32c3";
-const char* clientId = "esp32c3";
+  const char* mqttServer = "10.55.155.99";
+  int mqttPort = 1883;
+  const char* mqttTopic = "esp32c3";
+  const char* mqttClientId = "esp32c3";
 
-// Version checking example
-const char* versionCheckUrl = "https://iot.hoangcn.com/api/devices/check-version?key=804e8ee5eba8c5c3d17cd17077677b07adbcd134aab3f3289d4d47b001779b9e&device_id=1";
-const char* firmwareBaseUrl = "https://iot.hoangcn.com";
-String currentVersion = "1"; // Version hiện tại của thiết bị
+  const char* apiKey = "[KEY]";
+  int deviceId = [ID];
 
+  const char* firmwareBaseUrl = "http://10.55.155.99:4000";
+
+  String currentVersion = "[VERSION]";
+
+  String getVersionCheckUrl() const {
+    return "http://10.55.155.99:4000/api/devices/check-version?device_id=" +
+           String(deviceId) +
+           "&key=" + apiKey;
+  }
+};
+
+DeviceConfig cfg;
+
+// -------------------------
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 MFRC522 mfrc522(RFID_SDA_PIN, RFID_RST_PIN);
 
 unsigned long lastVersionCheck = 0;
-const unsigned long versionCheckInterval = 5000; // 5 giây
+const unsigned long versionCheckInterval = 5000;
 
 bool isConnected = false;
 
+// -------------------------
+// util
+// -------------------------
 String getCardUID() {
   String uidStr = "";
   for (byte i = 0; i < mfrc522.uid.size; i++) {
@@ -45,6 +62,9 @@ String getCardUID() {
   return uidStr;
 }
 
+// -------------------------
+// MQTT CALLBACK
+// -------------------------
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("[MQTT] Nhan tin nhan tu topic: ");
   Serial.println(topic);
@@ -55,7 +75,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println("[MQTT] Noi dung: " + message);
 
-  // Xử lý
+  // Xử lý đơn giản theo mẫu
   String reply = "";
   if (message == "REFRESH") {
     reply = "READY";
@@ -66,15 +86,18 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+// -------------------------
+// MQTT RECONNECT
+// -------------------------
 void reconnectMQTT() {
   while (!mqttClient.connected()) {
     Serial.print("Dang ket noi MQTT...");
 
-    if (mqttClient.connect(clientId)) {
+    if (mqttClient.connect(cfg.mqttClientId)) {
       Serial.println("Da ket noi!");
       isConnected = true;
-      mqttClient.subscribe(mqttTopic);
-      mqttClient.publish(mqttTopic, "READY");
+      mqttClient.subscribe(cfg.mqttTopic);
+      mqttClient.publish(cfg.mqttTopic, "READY");
     } else {
       Serial.print("That bai, rc=");
       Serial.print(mqttClient.state());
@@ -84,136 +107,176 @@ void reconnectMQTT() {
   }
 }
 
-void performOTA(String firmwarePath) {
-  Serial.println("[OTA] Bat dau cap nhat firmware...");
-  Serial.println("[OTA] Duong dan: " + String(firmwareBaseUrl) + firmwarePath);
-  
+// -------------------------
+// STATUS UPDATE
+// -------------------------
+void updateStatus(const String& status) {
+  Serial.println("[STATUS] -> " + status);
+
   HTTPClient http;
-  http.begin(String(firmwareBaseUrl) + firmwarePath);
-  
+  http.begin("http://10.55.155.99:4000/api/devices/update-status");
+  http.addHeader("Content-Type", "application/json");
+
+  String jsonBody = "{"
+                      "\"key\":\"" + String(cfg.apiKey) + "\","
+                      "\"device_id\":" + String(cfg.deviceId) + ","
+                      "\"status\":\"" + status + "\""
+                    "}";
+
+  int httpCode = http.POST(jsonBody);
+  if (httpCode > 0) {
+    Serial.printf("[STATUS] HTTP code: %d\n", httpCode);
+    String response = http.getString();
+    Serial.println("[STATUS] Server response: " + response);
+  } else {
+    Serial.printf("[STATUS] ERROR sending status: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
+}
+
+// -------------------------
+// OTA UPDATE
+// -------------------------
+void performOTA(const String& firmwarePath) {
+  Serial.println("[OTA] Starting OTA...");
+  Serial.println("[OTA] URL: " + String(cfg.firmwareBaseUrl) + firmwarePath);
+
+  digitalWrite(LED_PIN, HIGH);
+  digitalWrite(BUZZER_PIN, HIGH);
+
+  HTTPClient http;
+  http.begin(String(cfg.firmwareBaseUrl) + firmwarePath);
+
   int httpCode = http.GET();
-  
   if (httpCode == HTTP_CODE_OK) {
     int contentLength = http.getSize();
-    Serial.printf("[OTA] Kich thuoc firmware: %d bytes\n", contentLength);
-    
-    bool canBegin = Update.begin(contentLength);
-    
-    if (canBegin) {
+    Serial.printf("[OTA] Firmware size: %d bytes\n", contentLength);
+
+    if (Update.begin(contentLength)) {
       WiFiClient* stream = http.getStreamPtr();
       size_t written = Update.writeStream(*stream);
-      
-      if (written == contentLength) {
-        Serial.println("[OTA] Da ghi xong firmware");
-      } else {
-        Serial.printf("[OTA] Chi ghi duoc %d/%d bytes\n", written, contentLength);
+
+      if (written != contentLength) {
+        Serial.printf("[OTA] WARNING: Only wrote %d/%d bytes\n", written, contentLength);
       }
-      
+
       if (Update.end()) {
         if (Update.isFinished()) {
-          Serial.println("[OTA] Cap nhat thanh cong! Khoi dong lai...");
+          Serial.println("[OTA] OTA completed -> restarting...");
+          updateStatus("updated");
           digitalWrite(LED_PIN, HIGH);
-          delay(1000);
+          delay(500);
           ESP.restart();
         } else {
-          Serial.println("[OTA] Cap nhat chua hoan thanh");
+          Serial.println("[OTA] ERROR: OTA not finished");
         }
       } else {
-        Serial.printf("[OTA] Loi: %s\n", Update.errorString());
+        Serial.printf("[OTA] ERROR: %s\n", Update.errorString());
       }
     } else {
-      Serial.println("[OTA] Khong du bo nho de cap nhat");
+      Serial.println("[OTA] ERROR: Update.begin() failed");
     }
   } else {
-    Serial.printf("[OTA] Loi tai firmware, HTTP code: %d\n", httpCode);
+    Serial.printf("[OTA] ERROR HTTP code: %d\n", httpCode);
   }
-  
+
+  digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+
   http.end();
 }
 
+// -------------------------
+// VERSION CHECK
+// -------------------------
 void checkForUpdate() {
+  Serial.println("1 Checking for update...");
+
   if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("1 WiFi not connected");
     return;
   }
-  
+
   HTTPClient http;
-  http.begin(versionCheckUrl);
+  http.begin(cfg.getVersionCheckUrl());
   http.setTimeout(10000);
-  
+
   int httpCode = http.GET();
-  
-  if (httpCode == HTTP_CODE_OK) {
-    String payload = http.getString();
-    Serial.println("[Version Check] Response: " + payload);
-    
-    StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, payload);
-    
-    if (!error) {
-      bool success = doc["success"];
-      
-      if (success) {
-        String serverVersion = doc["data"]["version"].as<String>();
-        String firmwarePath = doc["data"]["firmware_path"].as<String>();
-        
-        Serial.println("[Version Check] Version hien tai: " + currentVersion);
-        Serial.println("[Version Check] Version moi: " + serverVersion);
-        
-        // So sánh version (đơn giản, có thể cải thiện)
-        if (serverVersion.toInt() > currentVersion.toInt()) {
-          Serial.println("[Version Check] Co version moi! Bat dau OTA...");
-          mqttClient.publish(mqttTopic, "UPDATING_FIRMWARE");
-          performOTA(firmwarePath);
-        } else {
-          Serial.println("[Version Check] Dang su dung version moi nhat");
-        }
-      }
-    } else {
-      Serial.println("[Version Check] Loi parse JSON");
-    }
-  } else {
-    Serial.printf("[Version Check] Loi HTTP: %d\n", httpCode);
+  if (httpCode != HTTP_CODE_OK) {
+    Serial.printf("1 ERROR HTTP code: %d\n", httpCode);
+    http.end();
+    return;
   }
-  
+
+  String payload = http.getString();
+  payload.trim();
+  Serial.println("payload: " + payload);
+
+  StaticJsonDocument<1024> doc;
+  DeserializationError error = deserializeJson(doc, payload);
+  if (error) {
+      Serial.print("1 ERROR parsing JSON: ");
+      Serial.println(error.c_str());
+      http.end();
+      return;
+  }
+
+  if (doc["success"]) {
+    String serverVersion = doc["data"]["version"].as<String>();
+    String firmwarePath = doc["data"]["firmware_path"].as<String>();
+
+    Serial.printf("1 Local=%s, Server=%s\n",
+                  cfg.currentVersion.c_str(),
+                  serverVersion.c_str());
+
+    if (serverVersion.toInt() > cfg.currentVersion.toInt()) {
+      Serial.println("1 New version found -> OTA");
+      updateStatus("updating");
+      performOTA(firmwarePath);
+    } else {
+      Serial.println("1 Already latest version");
+    }
+  }
+
   http.end();
 }
 
+// -------------------------
+// SETUP
+// -------------------------
 void setup() {
   Serial.begin(115200);
+
   pinMode(LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+  
   digitalWrite(LED_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
 
-  // Setup RFID
   SPI.begin(4, 5, 6, 10);
   mfrc522.PCD_Init();
-  Serial.println("RFID da khoi tao!");
 
-  // Kết nối WiFi
-  Serial.println();
-  Serial.print("Dang ket noi WiFi...");
-  WiFi.begin(ssid, pass);
-
-  while(WiFi.status() != WL_CONNECTED) {
-    delay(500);
+  Serial.println("[WiFi] Connecting...");
+  WiFi.begin(cfg.ssid, cfg.pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(200);
     Serial.print(".");
   }
+  Serial.println("\n[WiFi] Connected, IP: " + WiFi.localIP().toString());
 
-  Serial.println();
-  Serial.println("Da ket noi WiFi!");
-  Serial.print("Dia chi IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.print("Gateway: ");
-  Serial.println(WiFi.gatewayIP());
-
-  // Setup MQTT
-  mqttClient.setServer(mqttServer, mqttPort);
+  // MQTT setup
+  mqttClient.setServer(cfg.mqttServer, cfg.mqttPort);
   mqttClient.setCallback(mqttCallback);
-  
-  Serial.printf("\nDang ket noi MQTT broker: %s:%d\n", mqttServer, mqttPort);
-  Serial.println("Version hien tai: " + currentVersion);
+  Serial.printf("\nDang ket noi MQTT broker: %s:%d\n", cfg.mqttServer, cfg.mqttPort);
+  Serial.println("Version hien tai: " + cfg.currentVersion);
+
+  updateStatus("running");
 }
 
+// -------------------------
+// LOOP
+// -------------------------
 void loop() {
   // Duy trì kết nối MQTT
   if (!mqttClient.connected()) {
@@ -222,29 +285,25 @@ void loop() {
   }
   mqttClient.loop();
 
-  // Kiểm tra version mỗi 5 giây
   if (millis() - lastVersionCheck >= versionCheckInterval) {
     lastVersionCheck = millis();
     checkForUpdate();
   }
 
-  // Đọc thẻ RFID
   if (mfrc522.PICC_IsNewCardPresent()) {
     if (mfrc522.PICC_ReadCardSerial()) {
       String cardId = getCardUID();
-      Serial.println("Phat hien the moi: " + cardId);
-      
+      Serial.println("[RFID] UID detected: " + cardId);
+
       digitalWrite(LED_PIN, HIGH);
       digitalWrite(BUZZER_PIN, HIGH);
-      
-      // Gửi qua MQTT
-      String message = "UID-" + cardId;
-      mqttClient.publish(mqttTopic, message.c_str());
+
+      mqttClient.publish(cfg.mqttTopic, ("UID-" + cardId).c_str());
 
       mfrc522.PICC_HaltA();
-      delay(500);
+      delay(200);
       digitalWrite(BUZZER_PIN, LOW);
-      delay(500);
+      delay(200);
       digitalWrite(LED_PIN, LOW);
     }
   }

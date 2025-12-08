@@ -98,6 +98,22 @@ class MainWindow(QMainWindow):
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.exec()
 
+    def clear_status_display(self):
+        """Xóa toàn bộ thông tin hiển thị trong tab Trạng thái."""
+        self.plate_image.clear()
+        self.plate_image.setText("")
+        self.plate_number.setText("--")
+        self.card_id.setText("--")
+        self.card_type.setText("--")
+        self.entry_time.setText("--")
+        self.exit_time.setText("--")
+        self.duration.setText("--")
+        self.owner_name.setText("--")
+        self.phone.setText("--")
+        self.location.setText("--")
+        self.fee_label.setText("THU TIỀN: -- VNĐ")
+        self.system_status.setText("ĐANG XỬ LÝ...")
+
     def _on_ui_event(self, etype: EventType, data):
         match etype:
             case EventType.SHOW_MESS:
@@ -117,38 +133,59 @@ class MainWindow(QMainWindow):
                 )
                 self.plate_image.setPixmap(scaled_pixmap)
 
-                self.plate_number.setText(info['plate'])
-                self.card_id.setText(str(info['card_id']))
-                self.card_type.setText("Vé tháng" if info['info'] else "Vé lượt")
+                # Hiển thị thông tin biển số / thẻ
+                self.plate_number.setText(info.get('plate', '--'))
+                self.card_id.setText(str(info.get('card_id', '--')))
 
-                check_in = datetime.strptime(info['check_in'], "%Y-%m-%d %H:%M:%S")
-                check_in_plus7 = check_in + timedelta(hours=7)
-                self.entry_time.setText(str(check_in_plus7))
+                monthly_info = info.get('info')
+                self.card_type.setText("Vé tháng" if monthly_info else "Vé lượt")
 
-                if info['check_out']:
-                    print('Checkout:::' + info['check_out'])
-                    check_out = datetime.strptime(info['check_out'], "%Y-%m-%d %H:%M:%S")
-                    check_out_plus7 = check_out + timedelta(hours=7)
-                    self.exit_time.setText(str(check_out_plus7))
-                    duration_minutes = (check_out_plus7 - check_in_plus7).total_seconds() / 60
-                    self.duration.setText(duration_minutes)
+                # Giờ vào
+                check_in_plus7 = None
+                if info.get('check_in'):
+                    try:
+                        check_in = datetime.strptime(info['check_in'], "%Y-%m-%d %H:%M:%S")
+                        check_in_plus7 = check_in
+                        self.entry_time.setText(str(check_in_plus7))
+                    except Exception as e:
+                        print(f"parse check_in error: {e}")
+                        self.entry_time.setText("--")
+                else:
+                    self.entry_time.setText("--")
+
+                # Giờ ra + thời gian đỗ
+                if info.get('check_out'):
+                    try:
+                        check_out = datetime.strptime(info['check_out'], "%Y-%m-%d %H:%M:%S")
+                        check_out_plus7 = check_out
+                        self.exit_time.setText(str(check_out_plus7))
+                        if check_in_plus7:
+                            duration_minutes = (check_out_plus7 - check_in_plus7).total_seconds() / 60
+                            self.duration.setText(f"{int(duration_minutes)} phút")
+                        else:
+                            self.duration.setText("--")
+                    except Exception as e:
+                        print(f"parse check_out error: {e}")
+                        self.exit_time.setText("--")
+                        self.duration.setText("--")
                 else:
                     self.exit_time.setText("--")
                     self.duration.setText("--")
 
-
-                if info['info']:
-                    self.owner_name.setText(info["info"]["monthly_user_name"])
-                    self.phone.setText(info["info"]["monthly_user_phone"])
-                    self.location.setText(info["info"]["monthly_user_address"])
+                # Thông tin vé tháng (nếu có)
+                if monthly_info:
+                    self.owner_name.setText(monthly_info.get("monthly_user_name", "--"))
+                    self.phone.setText(monthly_info.get("monthly_user_phone", "--"))
+                    self.location.setText(monthly_info.get("monthly_user_address", "--"))
                 else:
                     self.owner_name.setText("--")
                     self.phone.setText("--")
                     self.location.setText("--")
 
-
-                if info['amount']:
-                    self.fee_label.setText(f"THU TIỀN: {str(info['amount'])} VNĐ")
+                # Phí
+                amount = info.get('amount')
+                if amount:
+                    self.fee_label.setText(f"THU TIỀN: {str(amount)} VNĐ")
                 else:
                     self.fee_label.setText(f"THU TIỀN: -- VNĐ")
 
@@ -156,6 +193,9 @@ class MainWindow(QMainWindow):
                 self.esp32c3_status_label.setStyleSheet("color: green;")
                 self.esp32c3_status_label.setText("ESP32C3: Đã kết nối")
             case EventType.ESP32C3_UID:
+                # Reset toàn bộ thông tin khi nhận UID mới
+                if self.tab_widget.currentIndex() == 0:
+                    self.clear_status_display()
                 self.show_loading_overlay()
             case EventType.ESP32C3_DISCONNECTED:
                 self.esp32c3_status_label.setStyleSheet("color: red;")
@@ -294,7 +334,7 @@ class MainWindow(QMainWindow):
         
         # Duration
         info_layout.addWidget(QLabel("Tổng thời gian đỗ:"), 7, 0)
-        duration = QLabel("5 phút")
+        duration = QLabel("--")
         duration.setFont(QFont("Arial", 10))
         info_layout.addWidget(duration, 7, 1)
         self.duration = duration
