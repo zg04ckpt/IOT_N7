@@ -36,11 +36,11 @@ class SessionService {
         }
 
         if (session.plate !== plate) {
-            return await this.handleCheckIn(plate, card, image);
-            // throw { 
-            //     statusCode: 403, 
-            //     message: `Thẻ đã check-in với biển số ${session.plate}.` 
-            // };
+            // return await this.handleCheckIn(plate, card, image);
+            throw { 
+                statusCode: 403, 
+                message: `Thẻ đã check-in với biển số ${session.plate}.` 
+            };
         }
 
         return await this.handleCheckOut(session, plate, card, image, user_id)
