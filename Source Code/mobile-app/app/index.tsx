@@ -13,6 +13,7 @@ import {
   Image,
   Modal,
   Pressable,
+  RefreshControl,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -56,6 +57,7 @@ export default function HomeScreen() {
   const [invoices, setInvoices] = useState<{ [key: number]: number }>({});
   const [cards, setCards] = useState<{ [key: number]: Card }>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingInvoices, setLoadingInvoices] = useState<{
     [key: number]: boolean;
   }>({});
@@ -156,6 +158,14 @@ export default function HomeScreen() {
     await Promise.all(cardPromises);
   };
 
+  const onRefresh = async () => {
+    console.log("🔄 Pull to refresh triggered");
+    setRefreshing(true);
+    await fetchSessions();
+    setRefreshing(false);
+    console.log("✅ Refresh completed");
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
@@ -213,6 +223,16 @@ export default function HomeScreen() {
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#0EA5E9"]}
+            tintColor="#0EA5E9"
+            title="Đang tải..."
+            titleColor="#666"
+          />
+        }
       >
         {/* Header Section */}
         <Animated.View
