@@ -127,19 +127,35 @@ class MainController:
             try:
                 thread, worker = thread_dict[thread_id]
                 
-                # Disconnect all signals
+                # Stop worker first
+                if hasattr(worker, 'stop'):
+                    worker.stop()
+                    print(f"Stopped worker for thread {thread_id}")
+                
+                # Disconnect all signals to prevent further emissions
                 try:
                     thread.started.disconnect()
                 except:
                     pass
                 
-                # Stop worker
-                if hasattr(worker, 'stop'):
-                    worker.stop()
+                try:
+                    if hasattr(worker, 'frame_received'):
+                        worker.frame_received.disconnect()
+                except:
+                    pass
                 
-                # Stop thread
+                # Stop thread gracefully
                 if thread.isRunning():
                     thread.quit()
+                    # Wait up to 5 seconds for thread to finish
+                    if thread.wait(5000):
+                        print(f"Thread {thread_id} stopped gracefully")
+                    else:
+                        print(f"Warning: Thread {thread_id} did not stop gracefully, marking for deletion")
+                
+                # Let Qt handle cleanup instead of terminating
+                thread.deleteLater()
+                worker.deleteLater()
                 
                 # Remove from dict
                 del thread_dict[thread_id]

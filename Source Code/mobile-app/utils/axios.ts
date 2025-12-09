@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const BASE_URL = "https://zlearn.hoangcn.com/api";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 const axiosInstance: AxiosInstance = axios.create({
   baseURL: BASE_URL,

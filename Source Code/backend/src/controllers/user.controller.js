@@ -58,8 +58,8 @@ class UserController {
             // Lưu access token ở cookie (chỉ bật secure trên production) và trả token về body để client có thể set header Authorization
             const cookieOptions = {
                 httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                secure: false,
+                sameSite: 'lax',
                 maxAge: 24 * 60 * 60 * 1000, // 24h
             };
 

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlateReader:
-    def __init__(self, lang_list=('en',), gpu=False, num_threads=2):
+    def __init__(self, lang_list=('en',), gpu=False, num_threads=3):
         try:
             logger.info("Initializing EasyOCR...")
             self.ocr = Reader(list(lang_list), gpu=gpu)

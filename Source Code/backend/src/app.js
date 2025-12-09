@@ -18,9 +18,23 @@ const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim())
   : [];
 
-// Xử lý preflight
+// Xử lý preflight - Allow all origins for static files
 app.use((req, res, next) => {
     const origin = req.headers.origin;
+    
+    // For static files (uploads, firmware), allow all origins
+    if (req.path.startsWith('/uploads') || req.path.startsWith('/firmware_versions')) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        
+        if (req.method === 'OPTIONS') {
+            return res.sendStatus(200);
+        }
+        return next();
+    }
+    
+    // For API routes, use strict CORS
     if (origin && allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     }

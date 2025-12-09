@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlateDetector:
-    def __init__(self, model_path: str = r'app/ai/model.pt', conf_threshold: float = 0.3, num_threads: int = 2):
+    def __init__(self, model_path: str = r'app/ai/model.pt', conf_threshold: float = 0.3, num_threads: int = 3):
         self._model_path = model_path
         self._conf_threshold = conf_threshold
         self.num_threads = num_threads
