@@ -6,24 +6,34 @@
 #include <Update.h>
 #include <ArduinoJson.h>
 
-// ===== CẤU HÌNH WIFI =====
-const char* ssid = "[WifiName]";
-const char* password = "[WifiPass]";
-
-// ===== CẤU HÌNH MQTT =====
-const char* mqttServer = "[Broker LAN IP]";
-const int mqttPort = 1883;
-const char* mqttTopic = "esp32cam";
-const char* clientId = "esp32cam";
-
 // ===== CẤU HÌNH VERSION & OTA =====
-// Version checking example
-const char* versionCheckUrl = "https://iot.hoangcn.com/api/devices/check-version?key=804e8ee5eba8c5c3d17cd17077677b07adbcd134aab3f3289d4d47b001779b9e&device_id=1";
-const char* firmwareBaseUrl = "https://iot.hoangcn.com";
-String currentVersion = "1"; // Version hiện tại của thiết bị
+struct DeviceConfig {
+  const char* ssid = "ZG04";
+  const char* pass = "zg04ckpt";
+
+  const char* mqttServer = "10.55.155.99";
+  int mqttPort = 1883;
+  const char* mqttTopic = "esp32cam";
+  const char* mqttClientId = "esp32cam";
+
+  const char* apiKey = "[KEY]";
+  int deviceId = [ID];
+
+  const char* firmwareBaseUrl = "http://10.55.155.99:4000";
+
+  String currentVersion = "[VERSION]";
+
+  String getVersionCheckUrl() const {
+    return "http://10.55.155.99:4000/api/devices/check-version?device_id=" +
+           String(deviceId) +
+           "&key=" + apiKey;
+  }
+};
+
+DeviceConfig cfg;
 
 unsigned long lastVersionCheck = 0;
-const unsigned long versionCheckInterval = 5000; // 5 giây
+const unsigned long versionCheckInterval = 5000;
 
 // ===== CẤU HÌNH CAMERA AI-THINKER =====
 #define PWDN_GPIO_NUM     32
@@ -114,6 +124,34 @@ fetch('/control?var=framesize&val='+framesize)
 </html>
 )rawliteral";
 
+// -------------------------
+// STATUS UPDATE
+// -------------------------
+void updateStatus(const String& status) {
+  Serial.println("[STATUS] -> " + status);
+
+  HTTPClient http;
+  http.begin("http://10.55.155.99:4000/api/devices/update-status");
+  http.addHeader("Content-Type", "application/json");
+
+  String jsonBody = "{"
+                      "\"key\":\"" + String(cfg.apiKey) + "\","
+                      "\"device_id\":" + String(cfg.deviceId) + ","
+                      "\"status\":\"" + status + "\""
+                    "}";
+
+  int httpCode = http.POST(jsonBody);
+  if (httpCode > 0) {
+    Serial.printf("[STATUS] HTTP code: %d\n", httpCode);
+    String response = http.getString();
+    Serial.println("[STATUS] Server response: " + response);
+  } else {
+    Serial.printf("[STATUS] ERROR sending status: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
+}
+
 // ===== MQTT CALLBACK =====
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("[MQTT] Nhan tin nhan tu topic: ");
@@ -140,20 +178,20 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 void reconnectMQTT() {
   while (!mqttClient.connected()) {
     Serial.print("Dang ket noi MQTT...");    
-    if (mqttClient.connect(clientId)) {
+    if (mqttClient.connect(cfg.mqttClientId)) {
       Serial.println("Da ket noi!");
-      mqttClient.subscribe(mqttTopic);
-      mqttClient.publish(mqttTopic, "READY");
+      mqttClient.subscribe(cfg.mqttTopic);
+      mqttClient.publish(cfg.mqttTopic, "READY");
 
       // Gửi url stream sau 1s
       delay(1000);
       String message1 = "STREAM_URL-http://" + WiFi.localIP().toString() + ":81/stream";
-      mqttClient.publish(mqttTopic, message1.c_str());
+      mqttClient.publish(cfg.mqttTopic, message1.c_str());
 
       // Gửi url stream sau 0.5s
       delay(0.5);
       String message2 = "CAPTURE_URL-http://" + WiFi.localIP().toString() + "/cap";
-      mqttClient.publish(mqttTopic, message2.c_str());
+      mqttClient.publish(cfg.mqttTopic, message2.c_str());
 
     } else {
       Serial.print("That bai, rc=");
@@ -164,105 +202,103 @@ void reconnectMQTT() {
   }
 }
 
-// ===== PERFORM OTA =====
-void performOTA(String firmwarePath) {
-  Serial.println("[OTA] Bat dau cap nhat firmware...");
-  Serial.println("[OTA] Duong dan: " + String(firmwareBaseUrl) + firmwarePath);
-  
-  mqttClient.publish(mqttTopic, "OTA_UPDATING");
-  
+// -------------------------
+// OTA UPDATE
+// -------------------------
+void performOTA(const String& firmwarePath) {
+  Serial.println("[OTA] Starting OTA...");
+  Serial.println("[OTA] URL: " + String(cfg.firmwareBaseUrl) + firmwarePath);
+
   HTTPClient http;
-  http.begin(String(firmwareBaseUrl) + firmwarePath);
-  
+  http.begin(String(cfg.firmwareBaseUrl) + firmwarePath);
+
   int httpCode = http.GET();
-  
   if (httpCode == HTTP_CODE_OK) {
     int contentLength = http.getSize();
-    Serial.printf("[OTA] Kich thuoc firmware: %d bytes\n", contentLength);
-    
-    bool canBegin = Update.begin(contentLength);
-    
-    if (canBegin) {
+    Serial.printf("[OTA] Firmware size: %d bytes\n", contentLength);
+
+    if (Update.begin(contentLength)) {
       WiFiClient* stream = http.getStreamPtr();
       size_t written = Update.writeStream(*stream);
-      
-      if (written == contentLength) {
-        Serial.println("[OTA] Da ghi xong firmware");
-      } else {
-        Serial.printf("[OTA] Chi ghi duoc %d/%d bytes\n", written, contentLength);
+
+      if (written != contentLength) {
+        Serial.printf("[OTA] WARNING: Only wrote %d/%d bytes\n", written, contentLength);
       }
-      
+
       if (Update.end()) {
         if (Update.isFinished()) {
-          Serial.println("[OTA] Cap nhat thanh cong! Khoi dong lai...");
-          mqttClient.publish(mqttTopic, "OTA_SUCCESS_REBOOTING");
-          delay(1000);
+          Serial.println("[OTA] OTA completed -> restarting...");
+          updateStatus("updated");
+          delay(500);
           ESP.restart();
         } else {
-          Serial.println("[OTA] Cap nhat chua hoan thanh");
-          mqttClient.publish(mqttTopic, "OTA_INCOMPLETE");
+          Serial.println("[OTA] ERROR: OTA not finished");
         }
       } else {
-        Serial.printf("[OTA] Loi: %s\n", Update.errorString());
-        mqttClient.publish(mqttTopic, "OTA_ERROR");
+        Serial.printf("[OTA] ERROR: %s\n", Update.errorString());
       }
     } else {
-      Serial.println("[OTA] Khong du bo nho de cap nhat");
-      mqttClient.publish(mqttTopic, "OTA_NO_MEMORY");
+      Serial.println("[OTA] ERROR: Update.begin() failed");
     }
   } else {
-    Serial.printf("[OTA] Loi tai firmware, HTTP code: %d\n", httpCode);
-    mqttClient.publish(mqttTopic, "OTA_DOWNLOAD_ERROR");
+    Serial.printf("[OTA] ERROR HTTP code: %d\n", httpCode);
   }
-  
+
   http.end();
 }
 
-// ===== CHECK FOR UPDATE =====
+// -------------------------
+// VERSION CHECK
+// -------------------------
 void checkForUpdate() {
+  Serial.println("1 Checking for update...");
+
   if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("1 WiFi not connected");
     return;
   }
-  
+
   HTTPClient http;
-  http.begin(versionCheckUrl);
+  http.begin(cfg.getVersionCheckUrl());
   http.setTimeout(10000);
-  
+
   int httpCode = http.GET();
-  
-  if (httpCode == HTTP_CODE_OK) {
-    String payload = http.getString();
-    Serial.println("[Version Check] Response: " + payload);
-    
-    StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, payload);
-    
-    if (!error) {
-      bool success = doc["success"];
-      
-      if (success) {
-        String serverVersion = doc["data"]["version"].as<String>();
-        String firmwarePath = doc["data"]["firmware_path"].as<String>();
-        
-        Serial.println("[Version Check] Version hien tai: " + currentVersion);
-        Serial.println("[Version Check] Version moi: " + serverVersion);
-        
-        // So sánh version
-        if (serverVersion.toInt() > currentVersion.toInt()) {
-          Serial.println("[Version Check] Co version moi! Bat dau OTA...");
-          mqttClient.publish(mqttTopic, ("NEW_VERSION_AVAILABLE:" + serverVersion).c_str());
-          performOTA(firmwarePath);
-        } else {
-          Serial.println("[Version Check] Dang su dung version moi nhat");
-        }
-      }
-    } else {
-      Serial.println("[Version Check] Loi parse JSON");
-    }
-  } else {
-    Serial.printf("[Version Check] Loi HTTP: %d\n", httpCode);
+  if (httpCode != HTTP_CODE_OK) {
+    Serial.printf("1 ERROR HTTP code: %d\n", httpCode);
+    http.end();
+    return;
   }
-  
+
+  String payload = http.getString();
+  payload.trim();
+  Serial.println("payload: " + payload);
+
+  StaticJsonDocument<1024> doc;
+  DeserializationError error = deserializeJson(doc, payload);
+  if (error) {
+      Serial.print("1 ERROR parsing JSON: ");
+      Serial.println(error.c_str());
+      http.end();
+      return;
+  }
+
+  if (doc["success"]) {
+    String serverVersion = doc["data"]["version"].as<String>();
+    String firmwarePath = doc["data"]["firmware_path"].as<String>();
+
+    Serial.printf("1 Local=%s, Server=%s\n",
+                  cfg.currentVersion.c_str(),
+                  serverVersion.c_str());
+
+    if (serverVersion.toInt() > cfg.currentVersion.toInt()) {
+      Serial.println("1 New version found -> OTA");
+      updateStatus("updating");
+      performOTA(firmwarePath);
+    } else {
+      Serial.println("1 Already latest version");
+    }
+  }
+
   http.end();
 }
 
@@ -492,7 +528,7 @@ void setup() {
   s->set_framesize(s, FRAMESIZE_VGA);
 
   // Kết nối WiFi
-  WiFi.begin(ssid, password);
+  WiFi.begin(cfg.ssid, cfg.pass);
   WiFi.setSleep(false);
 
   Serial.print("Connecting to WiFi");
@@ -503,10 +539,12 @@ void setup() {
   Serial.println("\nWiFi connected!");
 
   // Setup MQTT
-  mqttClient.setServer(mqttServer, mqttPort);
+  mqttClient.setServer(cfg.mqttServer, cfg.mqttPort);
   mqttClient.setCallback(mqttCallback);
-  Serial.printf("Dang ket noi MQTT broker: %s:%d\n", mqttServer, mqttPort);
-  Serial.println("Version hien tai: " + currentVersion);
+  Serial.printf("Dang ket noi MQTT broker: %s:%d\n", cfg.mqttServer, cfg.mqttPort);
+  Serial.println("Version hien tai: " + cfg.currentVersion);
+
+  updateStatus("running");
 
   // Khởi động web server
   startCameraServer();

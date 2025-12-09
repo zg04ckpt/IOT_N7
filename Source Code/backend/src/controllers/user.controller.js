@@ -55,17 +55,20 @@ class UserController {
         try {
             const result = await userService.login(req.body.email, req.body.password);
             
-            // Lưu access token ở cookie
+            // Lưu access token ở cookie (chỉ bật secure trên production) và trả token về body để client có thể set header Authorization
             const cookieOptions = {
                 httpOnly: true,
-                secure: true,
-                sameSite: 'none',
+                secure: false,
+                sameSite: 'lax',
                 maxAge: 24 * 60 * 60 * 1000, // 24h
             };
 
             res.cookie('access_token', result.token, cookieOptions);
             
-            return successResponse(res, 'Đăng nhập thành công', result.user);
+            return successResponse(res, 'Đăng nhập thành công', {
+                user: result.user,
+                token: result.token,
+            });
         } catch (error) {
             next(error);
         }

@@ -9,8 +9,10 @@ const PORT = process.env.PORT;
 // Thiết lập môi trường firmware trước khi start server
 setupFirmwareEnvironment()
   .then(() => {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`📡 LAN access: http://0.0.0.0:${PORT}`);
+      console.log(`💻 Local access: http://localhost:${PORT}`);
     });
   })
   .catch(error => {

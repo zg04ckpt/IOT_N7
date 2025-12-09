@@ -47,66 +47,6 @@ MFRC522 mfrc522(RFID_SDA_PIN, RFID_RST_PIN);
 unsigned long lastVersionCheck = 0;
 const unsigned long versionCheckInterval = 5000;
 
-bool isConnected = false;
-
-// -------------------------
-// util
-// -------------------------
-String getCardUID() {
-  String uidStr = "";
-  for (byte i = 0; i < mfrc522.uid.size; i++) {
-    if (mfrc522.uid.uidByte[i] < 0x10) uidStr += "0";
-    uidStr += String(mfrc522.uid.uidByte[i], HEX);
-  }
-  uidStr.toUpperCase();
-  return uidStr;
-}
-
-// -------------------------
-// MQTT CALLBACK
-// -------------------------
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("[MQTT] Nhan tin nhan tu topic: ");
-  Serial.println(topic);
-  
-  String message = "";
-  for (int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
-  Serial.println("[MQTT] Noi dung: " + message);
-
-  // Xử lý đơn giản theo mẫu
-  String reply = "";
-  if (message == "REFRESH") {
-    reply = "READY";
-  }
-
-  if (reply != "") {
-    mqttClient.publish(topic, reply.c_str());
-  }
-}
-
-// -------------------------
-// MQTT RECONNECT
-// -------------------------
-void reconnectMQTT() {
-  while (!mqttClient.connected()) {
-    Serial.print("Dang ket noi MQTT...");
-
-    if (mqttClient.connect(cfg.mqttClientId)) {
-      Serial.println("Da ket noi!");
-      isConnected = true;
-      mqttClient.subscribe(cfg.mqttTopic);
-      mqttClient.publish(cfg.mqttTopic, "READY");
-    } else {
-      Serial.print("That bai, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" Thu lai sau 5 giay...");
-      delay(5000);
-    }
-  }
-}
-
 // -------------------------
 // STATUS UPDATE
 // -------------------------
@@ -250,12 +190,9 @@ void setup() {
 
   pinMode(LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
-  
+
   digitalWrite(LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
-
-  SPI.begin(4, 5, 6, 10);
-  mfrc522.PCD_Init();
 
   Serial.println("[WiFi] Connecting...");
   WiFi.begin(cfg.ssid, cfg.pass);
@@ -264,11 +201,6 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\n[WiFi] Connected, IP: " + WiFi.localIP().toString());
-
-  // MQTT setup
-  mqttClient.setServer(cfg.mqttServer, cfg.mqttPort);
-  mqttClient.setCallback(mqttCallback);
-  Serial.printf("\nDang ket noi MQTT broker: %s:%d\n", cfg.mqttServer, cfg.mqttPort);
   Serial.println("Version hien tai: " + cfg.currentVersion);
 
   updateStatus("running");
@@ -278,33 +210,8 @@ void setup() {
 // LOOP
 // -------------------------
 void loop() {
-  // Duy trì kết nối MQTT
-  if (!mqttClient.connected()) {
-    isConnected = false;
-    reconnectMQTT();
-  }
-  mqttClient.loop();
-
   if (millis() - lastVersionCheck >= versionCheckInterval) {
     lastVersionCheck = millis();
     checkForUpdate();
-  }
-
-  if (mfrc522.PICC_IsNewCardPresent()) {
-    if (mfrc522.PICC_ReadCardSerial()) {
-      String cardId = getCardUID();
-      Serial.println("[RFID] UID detected: " + cardId);
-
-      digitalWrite(LED_PIN, HIGH);
-      digitalWrite(BUZZER_PIN, HIGH);
-
-      mqttClient.publish(cfg.mqttTopic, ("UID-" + cardId).c_str());
-
-      mfrc522.PICC_HaltA();
-      delay(200);
-      digitalWrite(BUZZER_PIN, LOW);
-      delay(200);
-      digitalWrite(LED_PIN, LOW);
-    }
   }
 }

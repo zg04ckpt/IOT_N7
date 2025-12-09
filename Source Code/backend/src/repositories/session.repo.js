@@ -28,6 +28,14 @@ class SessionRepo {
         return rows[0] ? new Session(rows[0]) : null;
     }
 
+    async findByCardId(card_id, status) {
+        const [rows] = await db.execute(
+            'SELECT * FROM sessions WHERE card_id = ? AND status = ? LIMIT 1',
+            [card_id, status]
+        );
+        return rows[0] ? new Session(rows[0]) : null;
+    }
+
     async create(data) {
         const { card_id, plate, check_in_image_url, status, check_in } = data;
         const [result] = await db.execute(

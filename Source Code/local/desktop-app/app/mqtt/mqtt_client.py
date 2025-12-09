@@ -4,7 +4,7 @@ from app.models.enums import EventType
 
 CLIENT_ID = "desktop-app"
 
-BROKER_HOST = "10.228.235.99"
+BROKER_HOST = "10.55.155.99"
 BROKER_PORT = 1883
 
 ESP32C3_CHANNEL = "esp32c3"

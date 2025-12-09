@@ -11,8 +11,8 @@ deviceRouter.get('/check-version', deviceController.checkVersion);
 deviceRouter.post('/update-status', deviceController.updateStatus);
 
 // Admin API (cần auth + ADMIN role)
-deviceRouter.use(authMiddleware);
-deviceRouter.use(roleMiddleware([Role.ADMIN]));
+// deviceRouter.use(authMiddleware);
+// deviceRouter.use(roleMiddleware([Role.ADMIN]));
 
 deviceRouter.get('/', deviceController.getAll);
 deviceRouter.get('/:id', deviceController.getById);

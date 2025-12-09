@@ -38,10 +38,31 @@ class CameraCaptureWorker(QObject):
         asyncio.run(self._fetch_once())
 
     async def _fetch_once(self):
-        async with httpx.AsyncClient() as client:
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries and self.running:
             try:
-                r = await client.get(self.url)
-                if r.status_code == 200:
-                    self.captured.emit(r.content)  # emit bytes
+                # Set timeout to 10 seconds
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    print(f"Fetching camera capture (attempt {retry_count + 1}/{max_retries})")
+                    r = await client.get(self.url)
+                    if r.status_code == 200 and r.content:
+                        print("Camera capture successful")
+                        self.captured.emit(r.content)
+                        return
+                    else:
+                        print(f"HTTP error: {r.status_code}")
+            except httpx.TimeoutException:
+                print(f"Timeout fetching camera capture (attempt {retry_count + 1})")
+            except httpx.ConnectError:
+                print("ESP32CAM is offline or unreachable")
+                break
             except Exception as e:
-                print("Error fetching camera capture:", e)
+                print(f"Error fetching camera capture: {e}")
+            
+            retry_count += 1
+            if retry_count < max_retries:
+                await asyncio.sleep(1)
+        
+        print("Failed to capture image from ESP32CAM")

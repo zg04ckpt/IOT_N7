@@ -38,16 +38,8 @@ class DeviceService {
     if (!sourceCode || typeof sourceCode !== "string")
       throw { statusCode: 400, message: "Source code bắt buộc" };
 
-    // Build firmware từ source code
-    let result;
-    try {
-      result = await buildFirmware(sourceCode, name, board, 0);
-    } catch (error) {
-      throw {
-        statusCode: 500,
-        message: "Biên dịch firmware thất bại: " + error.message,
-      };
-    }
+    if (!sourceCode.includes('[KEY]') || !sourceCode.includes('[ID]') || !sourceCode.includes("[VERSION]"))
+      throw { statusCode: 400, message: "Mã nguồn phải chứa [KEY], [ID] và [VERSION]" }
 
     // Tạo key duy nhất
     const key = crypto.randomBytes(32).toString("hex");
@@ -56,7 +48,7 @@ class DeviceService {
     const device = await deviceRepo.create({
       name,
       board,
-      latest_version: result.version,
+      latest_version: 1,
       curr_version: 1,
       total_versions: 1,
       firmware_folder_path: `/firmware_versions/${name}`,
@@ -64,7 +56,29 @@ class DeviceService {
       key,
     });
 
-    return device.toModel();
+    // Replace placeholders trong source code
+    sourceCode = sourceCode.replace(/\[VERSION\]/g, device.latest_version);
+    sourceCode = sourceCode.replace(/\[KEY\]/g, device.key);
+    sourceCode = sourceCode.replace(/\[ID\]/g, device.id);
+
+    // Build firmware từ source code
+    let result;
+    try {
+      result = await buildFirmware(sourceCode, name, board, 0);
+    } catch (error) {
+      
+      // Xóa bỏ thiết bị nếu chưa biên dịch thành công
+      await deviceRepo.delete(device.id);
+
+      throw {
+        statusCode: 500,
+        message: "Biên dịch firmware thất bại: " + error.message,
+      };
+    }
+
+    const res = device.toModel();
+    res.sourceCode = sourceCode;
+    return res;
   }
 
   async updateVersion(deviceId, sourceCode, userId) {
@@ -74,8 +88,18 @@ class DeviceService {
     if (!sourceCode || typeof sourceCode !== "string")
       throw { statusCode: 400, message: "Source code bắt buộc" };
 
-    // Build firmware version mới
+    if (!sourceCode.includes('[KEY]') || !sourceCode.includes('[ID]') || !sourceCode.includes("[VERSION]"))
+      throw { statusCode: 400, message: "Mã nguồn phải chứa [KEY], [ID] và [VERSION]" }
+
+    // Replace placeholders trong source code
     const currentVersion = parseInt(device.latest_version) || 0;
+    const newVersion = currentVersion + 1;
+    
+    sourceCode = sourceCode.replace(/\[VERSION\]/g, newVersion);
+    sourceCode = sourceCode.replace(/\[KEY\]/g, device.key);
+    sourceCode = sourceCode.replace(/\[ID\]/g, device.id);
+
+    // Build firmware version mới
     let result;
     try {
       result = await buildFirmware(
@@ -101,6 +125,7 @@ class DeviceService {
     return {
       version: result.version,
       firmware_path: result.binPath,
+      source_code: sourceCode
     };
   }
 
@@ -127,7 +152,11 @@ class DeviceService {
     if (!Device.isValidStatus(status))
       throw { statusCode: 400, message: "Trạng thái không hợp lệ" };
 
-    await deviceRepo.updateStatus(deviceId, status);
+    if (status == DeviceStatus.UPDATED) {
+      device.curr_version = device.latest_version;
+    }
+
+    await deviceRepo.updateStatus(deviceId, status, device.curr_version);
 
     return { message: "Cập nhật trạng thái thành công" };
   }
@@ -136,16 +165,28 @@ class DeviceService {
     const device = await deviceRepo.findById(id);
     if (!device) throw { statusCode: 404, message: "Thiết bị không tồn tại" };
 
-    // Xóa thư mục firmware
-    const firmwarePath = path.resolve(device.firmware_folder_path);
+    // Xóa thư mục firmware trước khi xóa device
+    // firmware_folder_path format: "/firmware_versions/DEVICE_NAME"
+    const firmwarePath = path.join(FIRMWARE_BASE_DIR, device.name);
+    
     try {
-      await fs.rm(firmwarePath, { recursive: true, force: true });
+      const exists = await fs.access(firmwarePath).then(() => true).catch(() => false);
+      if (exists) {
+        await fs.rm(firmwarePath, { recursive: true, force: true });
+        console.log(`✓ Đã xóa thư mục firmware: ${firmwarePath}`);
+      } else {
+        console.log(`⚠ Thư mục firmware không tồn tại: ${firmwarePath}`);
+      }
     } catch (error) {
-      console.error("Không thể xóa thư mục firmware:", error);
+      console.error("Lỗi khi xóa thư mục firmware:", error.message);
+      // Không throw error, tiếp tục xóa device trong database
     }
 
+    // Xóa device trong database
     if (!(await deviceRepo.delete(id)))
       throw { statusCode: 500, message: "Xóa thiết bị thất bại" };
+    
+    console.log(`✓ Đã xóa thiết bị ID: ${id}`);
   }
 }
 

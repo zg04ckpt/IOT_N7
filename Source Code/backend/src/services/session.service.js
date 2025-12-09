@@ -29,15 +29,20 @@ class SessionService {
         if (!await userRepo.exists(user_id))
             throw { statusCode: 403, message: 'Thông tin nhân viên không hợp lệ' };
 
-
-        const session = await sessionRepo.findByCardIdAndPlate(plate, card.id, SessionStatus.PAKING);
+        const session = await sessionRepo.findByCardId(card.id, SessionStatus.PAKING);
         
-        // Nếu session == null => CheckIn
         if (!session) {
             return await this.handleCheckIn(plate, card, image);
         }
 
-        // Nếu session != null => CheckOut
+        if (session.plate !== plate) {
+            // return await this.handleCheckIn(plate, card, image);
+            throw { 
+                statusCode: 403, 
+                message: `Thẻ đã check-in với biển số ${session.plate}.` 
+            };
+        }
+
         return await this.handleCheckOut(session, plate, card, image, user_id)
     }
 
